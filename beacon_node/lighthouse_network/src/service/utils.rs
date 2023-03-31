@@ -4,7 +4,7 @@ use crate::types::{
     error, EnrAttestationBitfield, EnrSyncCommitteeBitfield, GossipEncoding, GossipKind,
 };
 use crate::{GossipTopic, NetworkConfig};
-use libp2p::bandwidth::{BandwidthLogging, BandwidthSinks};
+use libp2p::bandwidth::BandwidthSinks;
 use libp2p::core::{
     identity::Keypair, multiaddr::Multiaddr, muxing::StreamMuxerBox, transport::Boxed,
 };
@@ -12,6 +12,7 @@ use libp2p::gossipsub::subscription_filter::WhitelistSubscriptionFilter;
 use libp2p::gossipsub::IdentTopic as Topic;
 use libp2p::{core, noise, PeerId, Transport};
 use prometheus_client::registry::Registry;
+use rust_libp2p_nym::transport::NymTransport;
 use slog::{debug, warn};
 use ssz::Decode;
 use ssz::Encode;
@@ -52,7 +53,17 @@ pub fn build_transport(
         transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
     };
 
-    let (transport, bandwidth) = BandwidthLogging::new(transport);
+    #[cfg(feature = "libp2p-nym")]
+    {
+        let uri = "ws://localhost:1977"; // TODO: get from env?
+        let nym = NymTransport::new(uri, local_private_key);
+        transport = {
+            let trans_clone = transport.clone();
+            transport.or_transport(nym)
+        };
+    }
+
+    let (transport, bandwidth) = transport.with_bandwidth_logging();
 
     // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();

@@ -6,10 +6,9 @@
 
 use futures::future::FutureExt;
 use handler::{HandlerEvent, RPCHandler};
-use libp2p::core::connection::ConnectionId;
 use libp2p::swarm::{
-    handler::ConnectionHandler, NetworkBehaviour, NetworkBehaviourAction, NotifyHandler,
-    PollParameters, SubstreamProtocol,
+    handler::ConnectionHandler, ConnectionId, NetworkBehaviour, NetworkBehaviourAction,
+    NotifyHandler, PollParameters, SubstreamProtocol,
 };
 use libp2p::PeerId;
 use rate_limiter::{RPCRateLimiter as RateLimiter, RateLimitedErr};
@@ -235,7 +234,7 @@ where
         )
     }
 
-    fn inject_event(
+    fn on_connection_handler_event(
         &mut self,
         peer_id: PeerId,
         conn_id: ConnectionId,
