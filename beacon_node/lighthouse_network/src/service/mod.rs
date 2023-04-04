@@ -320,6 +320,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         let (swarm, bandwidth) = {
             // Set up the transport - tcp/ws with noise and mplex
             let (transport, bandwidth) = build_transport(local_keypair.clone())
+                .await
                 .map_err(|e| format!("Failed to build transport: {:?}", e))?;
 
             // use the executor for libp2p

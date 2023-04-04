@@ -42,28 +42,22 @@ type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 
 /// The implementation supports TCP/IP, WebSockets over TCP/IP, noise as the encryption layer, and
 /// mplex as the multiplexing layer.
-pub fn build_transport(
+pub async fn build_transport(
     local_private_key: Keypair,
 ) -> std::io::Result<(BoxedTransport, Arc<BandwidthSinks>)> {
-    let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
-    let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
+    let uri = "ws://localhost:1977".to_string(); // TODO: get from env?
+    let nym = NymTransport::new(&uri, local_private_key)
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let transport = libp2p::dns::TokioDnsConfig::system(nym)?;
+
+    // let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
+    // let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
     #[cfg(feature = "libp2p-websocket")]
     let transport = {
         let trans_clone = transport.clone();
         transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
     };
-
-    #[cfg(feature = "libp2p-nym")]
-    {
-        // let uri = "ws://localhost:1977"; // TODO: get from env?
-        // let nym = NymTransport::new(uri.to_string(), local_private_key);
-        // transport = {
-        //     let trans_clone = transport.clone();
-        //     transport.or_transport(nym)
-        // };
-    }
-
-    // let (transport, bandwidth) = transport.with_bandwidth_logging();
 
     // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();
@@ -75,16 +69,18 @@ pub fn build_transport(
     yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
 
     // Authentication
-    Ok(transport
-        .upgrade(core::upgrade::Version::V1)
-        .authenticate(generate_noise_config(&local_private_key))
-        .multiplex(core::upgrade::SelectUpgrade::new(
-            yamux_config,
-            mplex_config,
-        ))
-        .timeout(Duration::from_secs(10))
-        .boxed()
-        .with_bandwidth_logging())
+    // Ok(transport
+    //     .upgrade(core::upgrade::Version::V1)
+    //     .authenticate(generate_noise_config(&local_private_key))
+    //     .multiplex(core::upgrade::SelectUpgrade::new(
+    //         yamux_config,
+    //         mplex_config,
+    //     ))
+    //     .timeout(Duration::from_secs(10))
+    //     .boxed()
+    //     .with_bandwidth_logging())
+
+    Ok(transport.boxed().with_bandwidth_logging())
 }
 
 // Useful helper functions for debugging. Currently not used in the client.
