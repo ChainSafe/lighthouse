@@ -25,7 +25,9 @@ use gossipsub_scoring_parameters::{lighthouse_gossip_thresholds, PeerScoreSettin
 use libp2p::bandwidth::BandwidthSinks;
 use libp2p::gossipsub::error::PublishError;
 use libp2p::gossipsub::metrics::Config as GossipsubMetricsConfig;
-use libp2p::gossipsub::subscription_filter::MaxCountSubscriptionFilter;
+use libp2p::gossipsub::subscription_filter::{
+    AllowAllSubscriptionFilter, MaxCountSubscriptionFilter,
+};
 use libp2p::gossipsub::{
     GossipsubEvent, IdentTopic as Topic, MessageAcceptance, MessageAuthenticity, MessageId,
 };
@@ -246,14 +248,16 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 .map(|registry| (registry, GossipsubMetricsConfig::default()));
 
             let snappy_transform = SnappyTransform::new(config.gs_config.max_transmit_size());
-            let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
-                MessageAuthenticity::Anonymous,
-                config.gs_config.clone(),
-                gossipsub_metrics,
-                filter,
-                snappy_transform,
-            )
-            .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
+            // let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
+            //     MessageAuthenticity::Anonymous,
+            //     config.gs_config.clone(),
+            //     gossipsub_metrics,
+            //     filter,
+            //     snappy_transform,
+            // )
+            let mut gossipsub =
+                Gossipsub::new(MessageAuthenticity::Anonymous, config.gs_config.clone())
+                    .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
 
             gossipsub
                 .with_peer_score(params, thresholds)
@@ -352,7 +356,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     Executor(executor),
                 )
                 .notify_handler_buffer_size(std::num::NonZeroUsize::new(7).expect("Not zero"))
-                .connection_event_buffer_size(64)
+                .per_connection_event_buffer_size(64)
                 .connection_limits(limits)
                 .build(),
                 bandwidth,

@@ -7,8 +7,8 @@
 use futures::future::FutureExt;
 use handler::{HandlerEvent, RPCHandler};
 use libp2p::swarm::{
-    handler::ConnectionHandler, ConnectionId, NetworkBehaviour, NetworkBehaviourAction,
-    NotifyHandler, PollParameters, SubstreamProtocol,
+    behaviour::FromSwarm, handler::ConnectionHandler, ConnectionId, NetworkBehaviour,
+    NetworkBehaviourAction, NotifyHandler, PollParameters, SubstreamProtocol,
 };
 use libp2p::PeerId;
 use rate_limiter::{RPCRateLimiter as RateLimiter, RateLimitedErr};
@@ -104,8 +104,7 @@ pub struct RPCMessage<Id, TSpec: EthSpec> {
     pub event: HandlerEvent<Id, TSpec>,
 }
 
-type BehaviourAction<Id, TSpec> =
-    NetworkBehaviourAction<RPCMessage<Id, TSpec>, RPCHandler<Id, TSpec>>;
+type BehaviourAction<Id, TSpec> = NetworkBehaviourAction<RPCMessage<Id, TSpec>, RPCSend<Id, TSpec>>;
 
 /// Implements the libp2p `NetworkBehaviour` trait and therefore manages network-level
 /// logic.
@@ -300,7 +299,12 @@ where
         &mut self,
         cx: &mut Context,
         _: &mut impl PollParameters,
-    ) -> Poll<NetworkBehaviourAction<Self::OutEvent, Self::ConnectionHandler>> {
+    ) -> Poll<
+        NetworkBehaviourAction<
+            Self::OutEvent,
+            <Self::ConnectionHandler as ConnectionHandler>::InEvent,
+        >,
+    > {
         // let the rate limiter prune.
         let _ = self.limiter.poll_unpin(cx);
 
@@ -316,6 +320,8 @@ where
 
         Poll::Pending
     }
+
+    fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {}
 }
 
 impl<Id, TSpec> slog::KV for RPCMessage<Id, TSpec>

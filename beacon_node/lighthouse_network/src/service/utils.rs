@@ -10,7 +10,7 @@ use libp2p::core::{
 };
 use libp2p::gossipsub::subscription_filter::WhitelistSubscriptionFilter;
 use libp2p::gossipsub::IdentTopic as Topic;
-use libp2p::{core, noise, PeerId, Transport};
+use libp2p::{core, noise, PeerId, Transport, TransportExt};
 use prometheus_client::registry::Registry;
 use rust_libp2p_nym::transport::NymTransport;
 use slog::{debug, warn};
@@ -55,15 +55,15 @@ pub fn build_transport(
 
     #[cfg(feature = "libp2p-nym")]
     {
-        let uri = "ws://localhost:1977"; // TODO: get from env?
-        let nym = NymTransport::new(uri, local_private_key);
-        transport = {
-            let trans_clone = transport.clone();
-            transport.or_transport(nym)
-        };
+        // let uri = "ws://localhost:1977"; // TODO: get from env?
+        // let nym = NymTransport::new(uri.to_string(), local_private_key);
+        // transport = {
+        //     let trans_clone = transport.clone();
+        //     transport.or_transport(nym)
+        // };
     }
 
-    let (transport, bandwidth) = transport.with_bandwidth_logging();
+    // let (transport, bandwidth) = transport.with_bandwidth_logging();
 
     // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();
@@ -75,18 +75,16 @@ pub fn build_transport(
     yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
 
     // Authentication
-    Ok((
-        transport
-            .upgrade(core::upgrade::Version::V1)
-            .authenticate(generate_noise_config(&local_private_key))
-            .multiplex(core::upgrade::SelectUpgrade::new(
-                yamux_config,
-                mplex_config,
-            ))
-            .timeout(Duration::from_secs(10))
-            .boxed(),
-        bandwidth,
-    ))
+    Ok(transport
+        .upgrade(core::upgrade::Version::V1)
+        .authenticate(generate_noise_config(&local_private_key))
+        .multiplex(core::upgrade::SelectUpgrade::new(
+            yamux_config,
+            mplex_config,
+        ))
+        .timeout(Duration::from_secs(10))
+        .boxed()
+        .with_bandwidth_logging())
 }
 
 // Useful helper functions for debugging. Currently not used in the client.

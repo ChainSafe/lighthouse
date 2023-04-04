@@ -40,7 +40,7 @@ directory = { path = "../../common/directory" }
 regex = "1.5.5"
 strum = { version = "0.24.0", features = ["derive"] }
 superstruct = "0.5.0"
-prometheus-client = "0.18.0"
+prometheus-client = "0.19"
 unused_port = { path = "../../common/unused_port" }
 delay_map = "0.3.0"
 void = "1"
@@ -63,3 +63,7 @@ quickcheck_macros = "0.9.1"
 [features]
 libp2p-websocket = []
 libp2p-nym = []
+
+[patch.crates-io] 
+libp2p = { git = "https://github.com/ChainSafe/rust-libp2p.git", rev = "e3440d25681df380c9f0f8cfdcfd5ecc0a4f2fb6" }
+multiaddr = { git = "https://github.com/ChainSafe/rust-multiaddr.git", rev = "2d21365f880622adf1c8e594b72e671dbac9dd64" }

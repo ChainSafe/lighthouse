@@ -23,7 +23,7 @@ use futures::prelude::*;
 use futures::stream::FuturesUnordered;
 use libp2p::multiaddr::Protocol;
 use libp2p::swarm::behaviour::{DialFailure, FromSwarm};
-use libp2p::swarm::AddressScore;
+use libp2p::swarm::{AddressScore, ConnectionId};
 pub use libp2p::{
     core::{ConnectedPoint, Multiaddr, PeerId},
     swarm::{
@@ -976,7 +976,7 @@ impl<TSpec: EthSpec> NetworkBehaviour for Discovery<TSpec> {
         &mut self,
         cx: &mut Context,
         _: &mut impl PollParameters,
-    ) -> Poll<NBAction<Self::OutEvent, Self::ConnectionHandler>> {
+    ) -> Poll<NBAction<Self::OutEvent, void::Void>> {
         if !self.started {
             return Poll::Pending;
         }
@@ -1098,6 +1098,14 @@ impl<TSpec: EthSpec> NetworkBehaviour for Discovery<TSpec> {
             }
         }
     }
+
+    fn on_connection_handler_event(
+        &mut self,
+        _peer_id: PeerId,
+        _connection_id: ConnectionId,
+        _event: void::Void,
+    ) {
+    }
 }
 
 impl<TSpec: EthSpec> Discovery<TSpec> {
@@ -1105,9 +1113,9 @@ impl<TSpec: EthSpec> Discovery<TSpec> {
         if let Some(peer_id) = peer_id {
             match error {
                 DialError::Banned
-                | DialError::LocalPeerId
+                | DialError::LocalPeerId { .. }
                 | DialError::InvalidPeerId(_)
-                | DialError::ConnectionIo(_)
+                | DialError::Denied { .. }
                 | DialError::NoAddresses
                 | DialError::Transport(_)
                 | DialError::WrongPeerId { .. } => {

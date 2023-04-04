@@ -350,11 +350,11 @@ where
         >,
     ) {
         match event {
-            ConnectionEvent::FullyNegotiatedInbound(substream, ()) => {
-                self.inject_fully_negotiated_inbound(substream, substream.info);
+            ConnectionEvent::FullyNegotiatedInbound(inbound) => {
+                self.inject_fully_negotiated_inbound(inbound.protocol, inbound.info);
             }
-            ConnectionEvent::FullyNegotiatedOutbound(substream, info) => {
-                self.inject_fully_negotiated_outbound(substream, substream.info);
+            ConnectionEvent::FullyNegotiatedOutbound(outbound) => {
+                self.inject_fully_negotiated_outbound(outbound.protocol, outbound.info);
             }
             ConnectionEvent::AddressChange(_) => {}
             ConnectionEvent::DialUpgradeError(_) => {}

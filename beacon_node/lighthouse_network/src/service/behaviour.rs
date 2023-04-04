@@ -19,7 +19,7 @@ pub type Gossipsub = BaseGossipsub;
 pub(crate) struct Behaviour<AppReqId, TSpec>
 where
     AppReqId: ReqId,
-    TSpec: EthSpec
+    TSpec: EthSpec,
 {
     /// The routing pub-sub mechanism for eth2.
     pub gossipsub: Gossipsub,

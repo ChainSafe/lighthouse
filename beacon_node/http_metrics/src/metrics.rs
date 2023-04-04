@@ -9,7 +9,8 @@ pub use lighthouse_metrics::*;
 pub fn gather_prometheus_metrics<T: BeaconChainTypes>(
     ctx: &Context<T>,
 ) -> std::result::Result<String, String> {
-    let mut buffer = vec![];
+    let mut buffer = String::new();
+    let mut vec_buffer = vec![];
     let encoder = TextEncoder::new();
 
     // There are two categories of metrics:
@@ -50,14 +51,20 @@ pub fn gather_prometheus_metrics<T: BeaconChainTypes>(
     }
 
     encoder
-        .encode(&lighthouse_metrics::gather(), &mut buffer)
+        .encode(&lighthouse_metrics::gather(), &mut vec_buffer)
         .unwrap();
     // encode gossipsub metrics also if they exist
     if let Some(registry) = ctx.gossipsub_registry.as_ref() {
         if let Ok(registry_locked) = registry.lock() {
-            let _ = encode(&mut buffer, &registry_locked);
+            if let Err(e) = encode(&mut buffer, &registry_locked)
+                .map_err(|e| format!("Failed to encode prometheus info: {:?}", e))
+            {
+                return Err(e);
+            }
         }
     }
 
-    String::from_utf8(buffer).map_err(|e| format!("Failed to encode prometheus info: {:?}", e))
+    let encoded_vec = String::from_utf8(vec_buffer)
+        .map_err(|e| format!("Failed to encode prometheus info: {:?}", e))?;
+    Ok(encoded_vec + &buffer)
 }
