@@ -111,16 +111,33 @@ sleeping 1
 BN_udp_tcp_base=9000
 BN_http_port_base=8000
 BN_metrics_port_base=6000
+BN_nym_client_base=5000
 
 (( $VC_COUNT < $BN_COUNT )) && SAS=-s || SAS=
 
+# start nym clients
 for (( bn=1; bn<=$BN_COUNT; bn++ )); do
-    execute_command_add_PID beacon_node_$bn.log ./beacon_node.sh $SAS -d $DEBUG_LEVEL $DATADIR/node_$bn $((BN_udp_tcp_base + $bn)) $((BN_http_port_base + $bn)) $((BN_metrics_port_base + $bn))
+    execute_command_add_PID nym_client_$bn.log \
+        ./nym_client.sh $((BN_nym_client_base + $bn))
+done
+
+# start beacon clients
+for (( bn=1; bn<=$BN_COUNT; bn++ )); do
+    execute_command_add_PID beacon_node_$bn.log \
+        ./beacon_node.sh $SAS -d $DEBUG_LEVEL \
+        $DATADIR/node_$bn \
+        $((BN_udp_tcp_base + $bn)) \
+        $((BN_http_port_base + $bn)) \
+        $((BN_metrics_port_base + $bn)) \
+        $((BN_nym_client_base + $bn))
 done
 
 # Start requested number of validator clients
 for (( vc=1; vc<=$VC_COUNT; vc++ )); do
-    execute_command_add_PID validator_node_$vc.log ./validator_client.sh $BUILDER_PROPOSALS -d $DEBUG_LEVEL $DATADIR/node_$vc http://0.0.0.0:$((BN_http_port_base + $vc))
+    execute_command_add_PID validator_node_$vc.log ./validator_client.sh \
+        $BUILDER_PROPOSALS -d $DEBUG_LEVEL \
+        $DATADIR/node_$vc \
+        http://0.0.0.0:$((BN_http_port_base + $vc))
 done
 
 echo "Started!"

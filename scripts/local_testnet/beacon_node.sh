@@ -40,8 +40,10 @@ data_dir=${@:$OPTIND+0:1}
 network_port=${@:$OPTIND+1:1}
 http_port=${@:$OPTIND+2:1}
 metrics_port=${@:$OPTIND+3:1}
+nym_client_port=${@:$OPTIND+4:1}
 
-exec lighthouse \
+exec env NYM_CLIENT="ws://0.0.0.0:${nym_client_port}" \
+    lighthouse \
 	--debug-level $DEBUG_LEVEL \
 	bn \
 	$SUBSCRIBE_ALL_SUBNETS \
