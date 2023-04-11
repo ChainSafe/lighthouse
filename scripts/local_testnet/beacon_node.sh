@@ -39,8 +39,11 @@ done
 data_dir=${@:$OPTIND+0:1}
 network_port=${@:$OPTIND+1:1}
 http_port=${@:$OPTIND+2:1}
+metrics_port=${@:$OPTIND+3:1}
+nym_client_port=${@:$OPTIND+4:1}
 
-exec lighthouse \
+exec env NYM_CLIENT="ws://0.0.0.0:${nym_client_port}" \
+    lighthouse \
 	--debug-level $DEBUG_LEVEL \
 	bn \
 	$SUBSCRIBE_ALL_SUBNETS \
@@ -54,4 +57,7 @@ exec lighthouse \
 	--port $network_port \
 	--http-port $http_port \
 	--disable-packet-filter \
-	--target-peers $((BN_COUNT - 1))
+	--target-peers $((BN_COUNT - 1)) \
+    --metrics \
+    --metrics-address 0.0.0.0 \
+    --metrics-port ${metrics_port}

@@ -17,11 +17,12 @@ use slog::{debug, warn};
 use ssz::Decode;
 use ssz::Encode;
 use std::collections::HashSet;
+use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
+// use std::time::Duration;
 use types::{ChainSpec, EnrForkId, EthSpec, ForkContext, SubnetId, SyncSubnetId};
 
 pub const NETWORK_KEY_FILENAME: &str = "key";
@@ -45,7 +46,10 @@ type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 pub async fn build_transport(
     local_private_key: Keypair,
 ) -> std::io::Result<(BoxedTransport, Arc<BandwidthSinks>)> {
-    let uri = "ws://localhost:1977".to_string(); // TODO: get from env?
+    // NOTE: hard-coded warning!!
+    //
+    // make this a config of the cli or resolve this as an error.
+    let uri = env::var("NYM_CLIENT").unwrap_or("ws://localhost:1977".to_string());
     let nym = NymTransport::new(&uri, local_private_key)
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
