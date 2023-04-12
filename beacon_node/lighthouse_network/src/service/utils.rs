@@ -57,11 +57,11 @@ pub async fn build_transport(
 
     // let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
     // let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
-    #[cfg(feature = "libp2p-websocket")]
-    let transport = {
-        let trans_clone = transport.clone();
-        transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
-    };
+    // #[cfg(feature = "libp2p-websocket")]
+    // let transport = {
+    //     let trans_clone = transport.clone();
+    //     transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
+    // };
 
     // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();
@@ -71,6 +71,8 @@ pub async fn build_transport(
     // yamux config
     let mut yamux_config = libp2p::yamux::YamuxConfig::default();
     yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
+
+    use std::time::Duration;
 
     // Authentication
     // Ok(transport
