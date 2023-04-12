@@ -44,7 +44,7 @@ prometheus-client = "0.19"
 unused_port = { path = "../../common/unused_port" }
 delay_map = "0.3.0"
 void = "1"
-rust-libp2p-nym = { git = "https://github.com/ChainSafe/rust-libp2p-nym.git", rev = "6c79d80846616f01ce006ef1778dc7c26f4b8579" }
+rust-libp2p-nym = { git = "https://github.com/ChainSafe/rust-libp2p-nym.git", rev = "7f4f8d3ee9a323ab3422b9b951c8b87fdc6854da" }
 
 [dependencies.libp2p]
 version = "0.51.0"

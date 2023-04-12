@@ -49,11 +49,14 @@ pub async fn build_transport(
     // NOTE: hard-coded warning!!
     //
     // make this a config of the cli or resolve this as an error.
-    let uri = env::var("NYM_CLIENT").unwrap_or("ws://localhost:1977".to_string());
+    let uri = env::var("NYM_CLIENT").unwrap_or("ws://127.0.0.1:1977".to_string());
+    println!("NYM_CLIENT: {}", uri);
     let nym = NymTransport::new(&uri, local_private_key)
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    println!("created nym transport");
     let transport = libp2p::dns::TokioDnsConfig::system(nym)?;
+    println!("created dns transport");
 
     // let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
     // let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
@@ -63,7 +66,23 @@ pub async fn build_transport(
     //     transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
     // };
 
-    // mplex config
+    // // mplex config
+    // let mut mplex_config = libp2p::mplex::MplexConfig::new();
+    // mplex_config.set_max_buffer_size(256);
+    // mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
+
+    // // yamux config
+    // let mut yamux_config = libp2p::yamux::YamuxConfig::default();
+    // yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
+
+    // use std::time::Duration;
+
+    // Authentication
+    // Ok(transport
+    //     .upgrade(core::upgrade::Version::V1)
+    //     .authenticate(generate_noise_config(&local_private_key))
+    //     .multiplex(core::upgrade::SelectUpgrade::new(
+    //         yamux_config,    // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();
     mplex_config.set_max_buffer_size(256);
     mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
@@ -74,12 +93,6 @@ pub async fn build_transport(
 
     use std::time::Duration;
 
-    // Authentication
-    // Ok(transport
-    //     .upgrade(core::upgrade::Version::V1)
-    //     .authenticate(generate_noise_config(&local_private_key))
-    //     .multiplex(core::upgrade::SelectUpgrade::new(
-    //         yamux_config,
     //         mplex_config,
     //     ))
     //     .timeout(Duration::from_secs(10))

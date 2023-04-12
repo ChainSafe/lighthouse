@@ -7331,7 +7331,7 @@ dependencies = [
 [[package]]
 name = "rust-libp2p-nym"
 version = "0.1.0"
-source = "git+https://github.com/ChainSafe/rust-libp2p-nym.git?rev=6c79d80846616f01ce006ef1778dc7c26f4b8579#6c79d80846616f01ce006ef1778dc7c26f4b8579"
+source = "git+https://github.com/ChainSafe/rust-libp2p-nym.git?rev=7f4f8d3ee9a323ab3422b9b951c8b87fdc6854da#7f4f8d3ee9a323ab3422b9b951c8b87fdc6854da"
 dependencies = [
  "futures",
  "hex",

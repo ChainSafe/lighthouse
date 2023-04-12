@@ -111,7 +111,7 @@ sleeping 1
 BN_udp_tcp_base=9000
 BN_http_port_base=8000
 BN_metrics_port_base=6000
-BN_nym_client_base=5000
+BN_nym_client_base=1976
 
 (( $VC_COUNT < $BN_COUNT )) && SAS=-s || SAS=
 
