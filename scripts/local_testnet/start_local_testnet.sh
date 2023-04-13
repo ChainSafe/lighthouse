@@ -120,6 +120,7 @@ for (( bn=1; bn<=$BN_COUNT; bn++ )); do
     execute_command_add_PID nym_client_$bn.log \
         ./nym_client.sh $((BN_nym_client_base + $bn))
 done
+sleeping 10
 
 # start beacon clients
 for (( bn=1; bn<=$BN_COUNT; bn++ )); do
