@@ -245,7 +245,8 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             // If metrics are enabled for gossipsub build the configuration
             let gossipsub_metrics = ctx
                 .gossipsub_registry
-                .map(|registry| (registry, GossipsubMetricsConfig::default()));
+                .map(|registry| (registry, GossipsubMetricsConfig::default()))
+                .unwrap();
 
             let snappy_transform = SnappyTransform::new(config.gs_config.max_transmit_size());
             // let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
@@ -255,9 +256,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             //     filter,
             //     snappy_transform,
             // )
-            let mut gossipsub =
-                Gossipsub::new(MessageAuthenticity::Anonymous, config.gs_config.clone())
-                    .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
+            let mut gossipsub = Gossipsub::new_with_metrics(
+                MessageAuthenticity::Anonymous,
+                config.gs_config.clone(),
+                gossipsub_metrics.0,
+                gossipsub_metrics.1,
+            )
+            .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
 
             gossipsub
                 .with_peer_score(params, thresholds)
