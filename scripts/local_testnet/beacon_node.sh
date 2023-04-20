@@ -43,8 +43,10 @@ metrics_port=${@:$OPTIND+3:1}
 nym_client_port=${@:$OPTIND+4:1}
 
 exec env NYM_CLIENT="ws://0.0.0.0:${nym_client_port}" \
+    env RUST_LOG=rust_libp2p_nym=DEBUG \
     lighthouse \
 	--debug-level $DEBUG_LEVEL \
+    -l \
 	bn \
 	$SUBSCRIBE_ALL_SUBNETS \
 	--datadir $data_dir \
