@@ -4,6 +4,8 @@ use crate::types::{
     error, EnrAttestationBitfield, EnrSyncCommitteeBitfield, GossipEncoding, GossipKind,
 };
 use crate::{GossipTopic, NetworkConfig};
+
+use futures::future::Either;
 use libp2p::bandwidth::BandwidthSinks;
 use libp2p::core::{
     identity::Keypair, multiaddr::Multiaddr, muxing::StreamMuxerBox, transport::Boxed,
@@ -22,7 +24,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::sync::Arc;
-// use std::time::Duration;
+use std::time::Duration;
 use types::{ChainSpec, EnrForkId, EthSpec, ForkContext, SubnetId, SyncSubnetId};
 
 pub const NETWORK_KEY_FILENAME: &str = "key";
@@ -41,6 +43,8 @@ pub struct Context<'a> {
 
 type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 
+//type BoxedTransport = Boxed<futures::future::Either<(PeerId, StreamMuxerBox), (PeerId, StreamMuxerBox)>>;
+
 /// The implementation supports TCP/IP, WebSockets over TCP/IP, noise as the encryption layer, and
 /// mplex as the multiplexing layer.
 pub async fn build_transport(
@@ -50,39 +54,13 @@ pub async fn build_transport(
     //
     // make this a config of the cli or resolve this as an error.
     let uri = env::var("NYM_CLIENT").unwrap_or("ws://127.0.0.1:1977".to_string());
-    println!("NYM_CLIENT: {}", uri);
-    let nym = NymTransport::new(&uri, local_private_key)
+    let nym = NymTransport::new(&uri, local_private_key.clone())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    println!("created nym transport");
-    let transport = libp2p::dns::TokioDnsConfig::system(nym)?;
-    println!("created dns transport");
 
-    // let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
-    // let transport = libp2p::dns::TokioDnsConfig::system(tcp)?;
-    // #[cfg(feature = "libp2p-websocket")]
-    // let transport = {
-    //     let trans_clone = transport.clone();
-    //     transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
-    // };
+    let nym_transport = nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed();
 
-    // // mplex config
-    // let mut mplex_config = libp2p::mplex::MplexConfig::new();
-    // mplex_config.set_max_buffer_size(256);
-    // mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
-
-    // // yamux config
-    // let mut yamux_config = libp2p::yamux::YamuxConfig::default();
-    // yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
-
-    // use std::time::Duration;
-
-    // Authentication
-    // Ok(transport
-    //     .upgrade(core::upgrade::Version::V1)
-    //     .authenticate(generate_noise_config(&local_private_key))
-    //     .multiplex(core::upgrade::SelectUpgrade::new(
-    //         yamux_config,    // mplex config
+    // mplex config
     let mut mplex_config = libp2p::mplex::MplexConfig::new();
     mplex_config.set_max_buffer_size(256);
     mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
@@ -91,15 +69,31 @@ pub async fn build_transport(
     let mut yamux_config = libp2p::yamux::YamuxConfig::default();
     yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
 
-    use std::time::Duration;
+    let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
+    let tcp_transport = libp2p::dns::TokioDnsConfig::system(tcp)?
+        .upgrade(core::upgrade::Version::V1)
+        .authenticate(generate_noise_config(&local_private_key))
+        .multiplex(core::upgrade::SelectUpgrade::new(
+            yamux_config, // mplex config
+            mplex_config,
+        ))
+        .timeout(Duration::from_secs(10));
 
-    //         mplex_config,
-    //     ))
-    //     .timeout(Duration::from_secs(10))
-    //     .boxed()
-    //     .with_bandwidth_logging())
+    let transport = tcp_transport
+        .or_transport(nym_transport)
+        .map(|either_output, _| match either_output {
+            Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+            Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
+        })
+        .boxed();
 
-    Ok(transport.boxed().with_bandwidth_logging())
+    // #[cfg(feature = "libp2p-websocket")]
+    // let transport = {
+    //     let trans_clone = transport.clone();
+    //     transport.or_transport(libp2p::websocket::WsConfig::new(trans_clone))
+    // };
+
+    Ok(transport.with_bandwidth_logging())
 }
 
 // Useful helper functions for debugging. Currently not used in the client.
