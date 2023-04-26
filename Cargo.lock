@@ -4411,6 +4411,7 @@ dependencies = [
  "libp2p-ping",
  "libp2p-plaintext",
  "libp2p-quic",
+ "libp2p-relay",
  "libp2p-swarm",
  "libp2p-tcp",
  "libp2p-webrtc",
@@ -4581,6 +4582,7 @@ dependencies = [
  "libp2p-gossipsub",
  "libp2p-identify",
  "libp2p-ping",
+ "libp2p-relay",
  "libp2p-swarm",
  "prometheus-client",
 ]
@@ -4674,6 +4676,29 @@ dependencies = [
  "rustls 0.20.8",
  "thiserror",
  "tokio",
+]
+
+[[package]]
+name = "libp2p-relay"
+version = "0.15.0"
+source = "git+https://github.com/ChainSafe/rust-libp2p.git?rev=e3440d25681df380c9f0f8cfdcfd5ecc0a4f2fb6#e3440d25681df380c9f0f8cfdcfd5ecc0a4f2fb6"
+dependencies = [
+ "asynchronous-codec",
+ "bytes",
+ "either",
+ "futures",
+ "futures-timer",
+ "instant",
+ "libp2p-core 0.39.0",
+ "libp2p-swarm",
+ "log",
+ "prost",
+ "prost-build",
+ "prost-codec",
+ "rand 0.8.5",
+ "static_assertions",
+ "thiserror",
+ "void",
 ]
 
 [[package]]
@@ -7331,7 +7356,7 @@ dependencies = [
 [[package]]
 name = "rust-libp2p-nym"
 version = "0.1.0"
-source = "git+https://github.com/ChainSafe/rust-libp2p-nym.git?rev=a5cd52bb1107d2febe9741ea2caa919671b75e7c#a5cd52bb1107d2febe9741ea2caa919671b75e7c"
+source = "git+https://github.com/ChainSafe/rust-libp2p-nym.git?rev=85478df09002da8f114133330e54297458c2911a#85478df09002da8f114133330e54297458c2911a"
 dependencies = [
  "futures",
  "hex",

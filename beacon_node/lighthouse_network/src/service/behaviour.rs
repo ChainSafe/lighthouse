@@ -7,6 +7,7 @@ use libp2p::gossipsub::subscription_filter::{
 };
 use libp2p::gossipsub::Behaviour as BaseGossipsub;
 use libp2p::identify::Behaviour as Identify;
+use libp2p::relay;
 use libp2p::swarm::NetworkBehaviour;
 use types::EthSpec;
 
@@ -33,4 +34,6 @@ where
     pub identify: Identify,
     /// The peer manager that keeps track of peer's reputation and status.
     pub peer_manager: PeerManager<TSpec>,
+    /// Circuit relay for nodes supporting Nym and TCP.
+    pub relay: relay::Behaviour,
 }

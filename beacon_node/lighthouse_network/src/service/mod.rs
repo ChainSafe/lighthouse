@@ -25,14 +25,13 @@ use gossipsub_scoring_parameters::{lighthouse_gossip_thresholds, PeerScoreSettin
 use libp2p::bandwidth::BandwidthSinks;
 use libp2p::gossipsub::error::PublishError;
 use libp2p::gossipsub::metrics::Config as GossipsubMetricsConfig;
-use libp2p::gossipsub::subscription_filter::{
-    AllowAllSubscriptionFilter, MaxCountSubscriptionFilter,
-};
+use libp2p::gossipsub::subscription_filter::MaxCountSubscriptionFilter;
 use libp2p::gossipsub::{
     GossipsubEvent, IdentTopic as Topic, MessageAcceptance, MessageAuthenticity, MessageId,
 };
 use libp2p::identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent};
 use libp2p::multiaddr::{Multiaddr, Protocol as MProtocol};
+use libp2p::relay;
 use libp2p::swarm::{ConnectionLimits, Swarm, SwarmBuilder, SwarmEvent};
 use libp2p::PeerId;
 use slog::{crit, debug, info, o, trace, warn};
@@ -252,7 +251,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             // let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
             //     MessageAuthenticity::Anonymous,
             //     config.gs_config.clone(),
-            //     gossipsub_metrics,
+            //     Some(gossipsub_metrics),
             //     filter,
             //     snappy_transform,
             // )
@@ -319,6 +318,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 discovery,
                 identify,
                 peer_manager,
+                relay: relay::Behaviour::new(local_peer_id, Default::default()),
             }
         };
 
@@ -1435,6 +1435,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     BehaviourEvent::Discovery(de) => self.inject_discovery_event(de),
                     BehaviourEvent::Identify(ie) => self.inject_identify_event(ie),
                     BehaviourEvent::PeerManager(pe) => self.inject_pm_event(pe),
+                    BehaviourEvent::Relay(_) => todo!(),
                 },
                 SwarmEvent::ConnectionEstablished { .. } => None,
                 SwarmEvent::ConnectionClosed { .. } => None,
