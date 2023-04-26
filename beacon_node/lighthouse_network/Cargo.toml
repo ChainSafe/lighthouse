@@ -61,5 +61,5 @@ quickcheck = "0.9.2"
 quickcheck_macros = "0.9.1"
 
 [features]
-libp2p-websocket = []
+default = [ "libp2p-nym" ]
 libp2p-nym = []

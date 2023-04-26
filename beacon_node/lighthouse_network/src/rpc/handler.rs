@@ -969,18 +969,6 @@ where
         self.current_inbound_substream_id.0 += 1;
     }
 
-    // fn inject_event(&mut self, rpc_event: Self::InEvent) {
-    //     match rpc_event {
-    //         RPCSend::Request(id, req) => self.send_request(id, req),
-    //         RPCSend::Response(inbound_id, response) => self.send_response(inbound_id, response),
-    //         RPCSend::Shutdown(id, reason) => self.shutdown(Some((id, reason))),
-    //     }
-    //     // In any case, we need the handler to process the event.
-    //     if let Some(waker) = &self.waker {
-    //         waker.wake_by_ref();
-    //     }
-    // }
-
     fn inject_dial_upgrade_error(
         &mut self,
         request_info: (Id, OutboundRequest<TSpec>),
