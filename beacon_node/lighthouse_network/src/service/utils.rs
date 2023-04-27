@@ -62,28 +62,35 @@ pub async fn build_transport(
 
         nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed()
     };
+    #[cfg(not(feature = "libp2p-nym"))]
+    let transport = nym_transport;
 
-    // mplex config
-    let mut mplex_config = libp2p::mplex::MplexConfig::new();
-    mplex_config.set_max_buffer_size(256);
-    mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
+    #[cfg(feature = "libp2p-tcp")]
+    let tcp_transport = {
+        // mplex config
+        let mut mplex_config = libp2p::mplex::MplexConfig::new();
+        mplex_config.set_max_buffer_size(256);
+        mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
 
-    // yamux config
-    let mut yamux_config = libp2p::yamux::YamuxConfig::default();
-    yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
+        // yamux config
+        let mut yamux_config = libp2p::yamux::YamuxConfig::default();
+        yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
 
-    let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
-    let transport = libp2p::dns::TokioDnsConfig::system(tcp)?
-        .upgrade(core::upgrade::Version::V1)
-        .authenticate(generate_noise_config(&local_private_key))
-        .multiplex(core::upgrade::SelectUpgrade::new(
-            yamux_config, // mplex config
-            mplex_config,
-        ))
-        .timeout(Duration::from_secs(10));
+        let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
+        libp2p::dns::TokioDnsConfig::system(tcp)?
+            .upgrade(core::upgrade::Version::V1)
+            .authenticate(generate_noise_config(&local_private_key))
+            .multiplex(core::upgrade::SelectUpgrade::new(
+                yamux_config, // mplex config
+                mplex_config,
+            ))
+            .timeout(Duration::from_secs(10))
+    };
+    #[cfg(not(feature = "libp2p-nym"))]
+    let transport = tcp_transport;
 
-    #[cfg(feature = "libp2p-nym")]
-    let transport = transport
+    #[cfg(all(feature = "libp2p-nym", feature = "libp2p-tcp"))]
+    let transport = tcp_transport
         .or_transport(nym_transport)
         .map(|either_output, _| match either_output {
             Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
