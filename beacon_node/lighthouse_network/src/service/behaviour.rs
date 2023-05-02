@@ -1,6 +1,7 @@
 use crate::discovery::Discovery;
 use crate::peer_manager::PeerManager;
 use crate::rpc::{ReqId, RPC};
+use crate::types::SnappyTransform;
 
 use libp2p::gossipsub::subscription_filter::{
     MaxCountSubscriptionFilter, WhitelistSubscriptionFilter,
@@ -14,7 +15,7 @@ use types::EthSpec;
 use super::api_types::RequestId;
 
 pub type SubscriptionFilter = MaxCountSubscriptionFilter<WhitelistSubscriptionFilter>;
-pub type Gossipsub = BaseGossipsub;
+pub type Gossipsub = BaseGossipsub<SnappyTransform, SubscriptionFilter>;
 
 #[derive(NetworkBehaviour)]
 pub(crate) struct Behaviour<AppReqId, TSpec>

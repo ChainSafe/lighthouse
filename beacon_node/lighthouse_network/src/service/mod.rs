@@ -249,23 +249,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
 
             let snappy_transform = SnappyTransform::new(config.gs_config.max_transmit_size());
 
-            // TODO: idk why but this function no longer likes the `filter` and `snappy_transform`
-            // params after upgrading libp2p.
-            // let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
-            //     MessageAuthenticity::Anonymous,
-            //     config.gs_config.clone(),
-            //     Some(gossipsub_metrics),
-            //     filter,
-            //     snappy_transform,
-            // )
-
-            let mut gossipsub = Gossipsub::new_with_metrics(
+            let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
                 MessageAuthenticity::Anonymous,
                 config.gs_config.clone(),
-                gossipsub_metrics.0,
-                gossipsub_metrics.1,
-            )
-            .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
+                Some(gossipsub_metrics),
+                filter,
+                snappy_transform,
+            )?;
 
             gossipsub
                 .with_peer_score(params, thresholds)

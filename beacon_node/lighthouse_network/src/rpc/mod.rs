@@ -321,7 +321,7 @@ where
         Poll::Pending
     }
 
-    fn on_swarm_event(&mut self, event: FromSwarm<Self::ConnectionHandler>) {}
+    fn on_swarm_event(&mut self, _: FromSwarm<Self::ConnectionHandler>) {}
 }
 
 impl<Id, TSpec> slog::KV for RPCMessage<Id, TSpec>
