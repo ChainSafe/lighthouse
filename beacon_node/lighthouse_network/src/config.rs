@@ -53,6 +53,13 @@ pub fn gossip_max_size(is_merge_enabled: bool) -> usize {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Libp2pStrategy {
+    Nym,
+    Tcp,
+    NymOrTcp,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 /// Network configuration for lighthouse.
 pub struct Config {
@@ -139,6 +146,9 @@ pub struct Config {
 
     /// Configuration for the outbound rate limiter (requests made by this node).
     pub outbound_rate_limiter_config: Option<OutboundRateLimiterConfig>,
+
+    /// Configuration for the libp2p strategy.
+    pub libp2p_strategy: Libp2pStrategy,
 }
 
 impl Config {
@@ -321,6 +331,7 @@ impl Default for Config {
             metrics_enabled: false,
             enable_light_client_server: false,
             outbound_rate_limiter_config: None,
+            libp2p_strategy: Libp2pStrategy::NymOrTcp,
         }
     }
 }
