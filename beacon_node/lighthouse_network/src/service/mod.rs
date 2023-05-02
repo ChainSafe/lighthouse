@@ -1,6 +1,6 @@
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
-use crate::config::{gossipsub_config, NetworkLoad};
+use crate::config::{gossipsub_config, Libp2pStrategy, NetworkLoad};
 use crate::discovery::{
     subnet_predicate, DiscoveredPeers, Discovery, FIND_NODE_QUERY_CLOSEST_PEERS,
 };
@@ -31,9 +31,9 @@ use libp2p::gossipsub::{
 };
 use libp2p::identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent};
 use libp2p::multiaddr::{Multiaddr, Protocol as MProtocol};
-use libp2p::relay;
 use libp2p::swarm::{ConnectionLimits, Swarm, SwarmBuilder, SwarmEvent};
 use libp2p::PeerId;
+use libp2p::{relay, TransportExt};
 use slog::{crit, debug, info, o, trace, warn};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -46,7 +46,10 @@ use types::ForkName;
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext, Slot, SubnetId,
 };
-use utils::{build_transport, strip_peer_id, Context as ServiceContext, MAX_CONNECTIONS_PER_PEER};
+use utils::{
+    build_nym_transport, build_tcp_transport, build_transport, strip_peer_id,
+    Context as ServiceContext, MAX_CONNECTIONS_PER_PEER,
+};
 
 pub mod api_types;
 mod behaviour;
@@ -318,9 +321,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
 
         let (swarm, bandwidth) = {
             // Set up the transport - tcp/ws with noise and mplex
-            let (transport, bandwidth) = build_transport(local_keypair.clone())
-                .await
-                .map_err(|e| format!("Failed to build transport: {:?}", e))?;
+            let (transport, bandwidth) = match config.libp2p_strategy {
+                Libp2pStrategy::Nym => build_nym_transport(local_keypair.clone()).await,
+                Libp2pStrategy::Tcp => build_tcp_transport(local_keypair.clone()).await,
+                Libp2pStrategy::NymOrTcp => build_transport(local_keypair.clone()).await,
+            }
+            .map_err(|e| format!("Failed to build transport: {:?}", e))?
+            .with_bandwidth_logging();
 
             // use the executor for libp2p
             struct Executor(task_executor::TaskExecutor);
