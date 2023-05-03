@@ -47,6 +47,7 @@ impl NymClient {
             .arg(&id)
             .arg("--port")
             .arg(&id)
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .expect("Failed to start nym-client");
