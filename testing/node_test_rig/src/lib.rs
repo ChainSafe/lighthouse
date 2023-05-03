@@ -22,6 +22,8 @@ pub use execution_layer::test_utils::{
 };
 pub use validator_client::Config as ValidatorConfig;
 
+pub mod nym_client;
+
 /// The global timeout for HTTP requests to the beacon node.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(4);
 

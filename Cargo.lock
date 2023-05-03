@@ -5685,6 +5685,7 @@ dependencies = [
  "environment",
  "eth2",
  "execution_layer",
+ "rand 0.8.5",
  "sensitive_url",
  "tempfile",
  "types",

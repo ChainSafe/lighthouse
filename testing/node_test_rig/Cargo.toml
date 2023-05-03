@@ -14,3 +14,4 @@ validator_client = { path = "../../validator_client" }
 validator_dir = { path = "../../common/validator_dir", features = ["insecure_keys"] }
 sensitive_url = { path = "../../common/sensitive_url" }
 execution_layer = { path = "../../beacon_node/execution_layer" }
+rand = "0.8.5"
