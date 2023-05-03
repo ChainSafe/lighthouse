@@ -111,24 +111,23 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
 
     let main_future = async {
         // Setting up nym clients.
-        let mut nym_ports = {
+        //
+        // # NOTE
+        //
+        // the process of the clients will be dropped if we return the ports
+        // directly in the block below, so returning the instances of nym clients
+        // is necessary here.
+        let nym_clients = {
             let mut count = nym_node_count + either_node_count;
             if !matches!(leading, Libp2pTransport::Tcp) {
                 count += 1;
             }
 
-            println!("Creating {} nym clients...", count);
-            let ports = future::join_all((0..count).map(|_| NymClient::new()))
-                .await
-                .iter()
-                .map(|client| client.port)
-                .collect::<Vec<u16>>();
-
-            println!("Sleeping 10s...");
-            tokio::time::sleep(Duration::from_secs(10)).await;
-
-            ports
+            println!("Setting up {} nym clients...", count);
+            future::join_all((0..count).map(|_| NymClient::new())).await
         };
+
+        let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
 
         /*
          * Deploy the deposit contract, spawn tasks to keep creating new blocks and deposit
