@@ -42,8 +42,7 @@ http_port=${@:$OPTIND+2:1}
 metrics_port=${@:$OPTIND+3:1}
 nym_client_port=${@:$OPTIND+4:1}
 
-exec env NYM_CLIENT="ws://0.0.0.0:${nym_client_port}" \
-    env RUST_LOG=rust_libp2p_nym=DEBUG \
+exec env RUST_LOG=rust_libp2p_nym=DEBUG \
     lighthouse \
 	--debug-level $DEBUG_LEVEL \
     -l \
@@ -58,6 +57,7 @@ exec env NYM_CLIENT="ws://0.0.0.0:${nym_client_port}" \
 	--enr-tcp-port $network_port \
 	--port $network_port \
 	--http-port $http_port \
+    --nym-port $nym_client_port \
 	--disable-packet-filter \
 	--target-peers $((BN_COUNT - 1)) \
     --metrics \

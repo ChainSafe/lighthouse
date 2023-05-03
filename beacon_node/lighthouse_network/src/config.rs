@@ -233,6 +233,10 @@ impl Config {
         };
     }
 
+    pub fn set_nym_client_addr(&mut self, listen_addr: ListenAddr<Ipv4Addr>) {
+        self.nym_client_address = listen_addr;
+    }
+
     pub fn set_listening_addr(&mut self, listen_addr: ListenAddress) {
         match listen_addr {
             ListenAddress::V4(ListenAddr {

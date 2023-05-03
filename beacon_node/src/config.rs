@@ -11,7 +11,7 @@ use execution_layer::DEFAULT_JWT_FILE;
 use genesis::Eth1Endpoint;
 use http_api::TlsConfig;
 use lighthouse_network::{multiaddr::Protocol, Enr, Multiaddr, NetworkConfig, PeerIdSerialized};
-use lighthouse_network::{Libp2pTransport, ListenAddress};
+use lighthouse_network::{Libp2pTransport, ListenAddr, ListenAddress};
 use sensitive_url::SensitiveUrl;
 use slog::{info, warn, Logger};
 use std::cmp;
@@ -774,6 +774,29 @@ pub fn get_config<E: EthSpec>(
     Ok(client_config)
 }
 
+/// Gets the `ListenAddr` for the `NymClient` from the CLI arguments.
+pub fn parse_nym_client_address(cli_args: &ArgMatches) -> Result<ListenAddr<Ipv4Addr>, String> {
+    let maybe_nym_client_host = cli_args
+        .value_of("nym-host")
+        .map(str::parse::<Ipv4Addr>)
+        .transpose()
+        .map_err(|parse_error| format!("Failed to parse --nym-host as an Ipv4Addr: {parse_error}"))?
+        .unwrap_or(Ipv4Addr::UNSPECIFIED);
+
+    let maybe_nym_client_port = cli_args
+        .value_of("nym-port")
+        .map(str::parse::<u16>)
+        .transpose()
+        .map_err(|parse_error| format!("Failed to parse --nym-port as an integer: {parse_error}"))?
+        .unwrap_or(1997);
+
+    Ok(ListenAddr {
+        addr: maybe_nym_client_host,
+        tcp_port: maybe_nym_client_port,
+        udp_port: maybe_nym_client_port,
+    })
+}
+
 /// Gets the listening_addresses for lighthouse based on the cli options.
 pub fn parse_listening_addresses(
     cli_args: &ArgMatches,
@@ -966,6 +989,8 @@ pub fn set_network_config(
     }
 
     config.set_listening_addr(parse_listening_addresses(cli_args, log)?);
+
+    config.set_nym_client_addr(parse_nym_client_address(cli_args)?);
 
     if let Some(target_peers_str) = cli_args.value_of("target-peers") {
         config.target_peers = target_peers_str

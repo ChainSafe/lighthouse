@@ -17,7 +17,6 @@ use slog::{debug, warn};
 use ssz::Decode;
 use ssz::Encode;
 use std::collections::HashSet;
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
