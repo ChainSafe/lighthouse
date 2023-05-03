@@ -14,7 +14,7 @@ use types::EthSpec;
 use validator_client::ProductionValidatorClient;
 use validator_dir::insecure_keys::build_deterministic_validator_dirs;
 
-pub use beacon_node::{ClientConfig, ClientGenesis, ProductionClient};
+pub use beacon_node::{ClientConfig, ClientGenesis, Libp2pTransport, ProductionClient};
 pub use environment;
 pub use eth2;
 pub use execution_layer::test_utils::{

@@ -67,7 +67,7 @@ impl FromStr for Libp2pTransport {
         match s {
             "tcp" => Ok(Libp2pTransport::Tcp),
             "nym" => Ok(Libp2pTransport::Nym),
-            "nym_either_tcp" => Ok(Libp2pTransport::NymEitherTcp),
+            "nym-either-tcp" => Ok(Libp2pTransport::NymEitherTcp),
             _ => Err(format!("Unknown transport type: {}", s)),
         }
     }

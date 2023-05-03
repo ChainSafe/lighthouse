@@ -5,7 +5,7 @@ use std::{
     io::{BufRead, BufReader},
     net::TcpListener,
     ops::Range,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
 };
 
 const LOCALHOST: &str = "0.0.0.0";
@@ -26,15 +26,10 @@ fn pick_port() -> u16 {
 /// Instance of nym client
 pub struct NymClient {
     ps: Child,
-    port: u16,
+    pub port: u16,
 }
 
 impl NymClient {
-    /// Get the websocket address of the client.
-    pub fn ws(&self) -> String {
-        format!("ws://{}:{}", LOCALHOST, self.port)
-    }
-
     pub async fn new() -> Self {
         let port = pick_port();
         let id = port.to_string();
@@ -54,6 +49,8 @@ impl NymClient {
             .arg(&id)
             .arg("--port")
             .arg(&id)
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to start nym-client");
 
