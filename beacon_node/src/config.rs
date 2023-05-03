@@ -10,8 +10,8 @@ use environment::RuntimeContext;
 use execution_layer::DEFAULT_JWT_FILE;
 use genesis::Eth1Endpoint;
 use http_api::TlsConfig;
-use lighthouse_network::ListenAddress;
 use lighthouse_network::{multiaddr::Protocol, Enr, Multiaddr, NetworkConfig, PeerIdSerialized};
+use lighthouse_network::{Libp2pTransport, ListenAddress};
 use sensitive_url::SensitiveUrl;
 use slog::{info, warn, Logger};
 use std::cmp;
@@ -757,6 +757,18 @@ pub fn get_config<E: EthSpec>(
     // Payload selection configs
     if cli_args.is_present("always-prefer-builder-payload") {
         client_config.always_prefer_builder_payload = true;
+    }
+
+    if cli_args.is_present("transport") {
+        if let Some(maybe_transport) = cli_args.value_of("transport") {
+            let transport = maybe_transport
+                .parse::<Libp2pTransport>()
+                .map_err(|parse_error| {
+                    format!("Failed to parse transport ({maybe_transport}): {parse_error}")
+                })?;
+
+            client_config.network.libp2p_transport = transport;
+        }
     }
 
     Ok(client_config)

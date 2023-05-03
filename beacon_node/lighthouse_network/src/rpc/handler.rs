@@ -969,6 +969,8 @@ where
         self.current_inbound_substream_id.0 += 1;
     }
 
+    // TODO: remove this function if we don't need it anymore.
+    #[allow(unused)]
     fn inject_dial_upgrade_error(
         &mut self,
         request_info: (Id, OutboundRequest<TSpec>),

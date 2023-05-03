@@ -145,6 +145,7 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         beacon_config.eth1.node_far_behind_seconds = 20;
         beacon_config.dummy_eth1_backend = false;
         beacon_config.sync_eth1_chain = true;
+        beacon_config.network.metrics_enabled = true;
         beacon_config.eth1.auto_update_interval_millis = eth1_block_time.as_millis() as u64;
         beacon_config.eth1.chain_id = Eth1Id::from(chain_id);
         beacon_config.network.target_peers = node_count - 1;

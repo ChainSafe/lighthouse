@@ -112,6 +112,7 @@ BN_udp_tcp_base=9000
 BN_http_port_base=8000
 BN_metrics_port_base=6000
 BN_nym_client_base=1976
+BN_vc_metrics_port_base=5000
 
 (( $VC_COUNT < $BN_COUNT )) && SAS=-s || SAS=
 
@@ -120,7 +121,7 @@ for (( bn=1; bn<=$BN_COUNT; bn++ )); do
     execute_command_add_PID nym_client_$bn.log \
         ./nym_client.sh $((BN_nym_client_base + $bn))
 done
-sleeping 10
+sleeping 60
 
 # start beacon clients
 for (( bn=1; bn<=$BN_COUNT; bn++ )); do
@@ -138,7 +139,8 @@ for (( vc=1; vc<=$VC_COUNT; vc++ )); do
     execute_command_add_PID validator_node_$vc.log ./validator_client.sh \
         $BUILDER_PROPOSALS -d $DEBUG_LEVEL \
         $DATADIR/node_$vc \
-        http://0.0.0.0:$((BN_http_port_base + $vc))
+        http://0.0.0.0:$((BN_http_port_base + $vc)) \
+        $((BN_vc_metrics_port_base + $vc))
 done
 
 echo "Started!"

@@ -29,5 +29,8 @@ exec lighthouse \
 	--datadir ${@:$OPTIND:1} \
 	--testnet-dir $TESTNET_DIR \
 	--init-slashing-protection \
+    --metrics \
 	--beacon-nodes ${@:$OPTIND+1:1} \
+    --metrics-address 0.0.0.0 \
+    --metrics-port ${@:OPTIND+2:1}\
 	$VC_ARGS

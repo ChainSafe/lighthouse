@@ -1,6 +1,6 @@
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
-use crate::config::{gossipsub_config, NetworkLoad};
+use crate::config::{gossipsub_config, Libp2pTransport, NetworkLoad};
 use crate::discovery::{
     subnet_predicate, DiscoveredPeers, Discovery, FIND_NODE_QUERY_CLOSEST_PEERS,
 };
@@ -23,17 +23,17 @@ use api_types::{PeerRequestId, Request, RequestId, Response};
 use futures::stream::StreamExt;
 use gossipsub_scoring_parameters::{lighthouse_gossip_thresholds, PeerScoreSettings};
 use libp2p::bandwidth::BandwidthSinks;
-use libp2p::gossipsub::error::PublishError;
 use libp2p::gossipsub::metrics::Config as GossipsubMetricsConfig;
 use libp2p::gossipsub::subscription_filter::MaxCountSubscriptionFilter;
+use libp2p::gossipsub::PublishError;
 use libp2p::gossipsub::{
-    GossipsubEvent, IdentTopic as Topic, MessageAcceptance, MessageAuthenticity, MessageId,
+    Event as GossipsubEvent, IdentTopic as Topic, MessageAcceptance, MessageAuthenticity, MessageId,
 };
 use libp2p::identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent};
 use libp2p::multiaddr::{Multiaddr, Protocol as MProtocol};
-use libp2p::relay;
 use libp2p::swarm::{ConnectionLimits, Swarm, SwarmBuilder, SwarmEvent};
 use libp2p::PeerId;
+use libp2p::{relay, TransportExt};
 use slog::{crit, debug, info, o, trace, warn};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -46,7 +46,10 @@ use types::ForkName;
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext, Slot, SubnetId,
 };
-use utils::{build_transport, strip_peer_id, Context as ServiceContext, MAX_CONNECTIONS_PER_PEER};
+use utils::{
+    build_nym_transport, build_tcp_transport, build_transport, strip_peer_id,
+    Context as ServiceContext, MAX_CONNECTIONS_PER_PEER,
+};
 
 pub mod api_types;
 mod behaviour;
@@ -249,23 +252,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
 
             let snappy_transform = SnappyTransform::new(config.gs_config.max_transmit_size());
 
-            // TODO: idk why but this function no longer likes the `filter` and `snappy_transform`
-            // params after upgrading libp2p.
-            // let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
-            //     MessageAuthenticity::Anonymous,
-            //     config.gs_config.clone(),
-            //     Some(gossipsub_metrics),
-            //     filter,
-            //     snappy_transform,
-            // )
-
-            let mut gossipsub = Gossipsub::new_with_metrics(
+            let mut gossipsub = Gossipsub::new_with_subscription_filter_and_transform(
                 MessageAuthenticity::Anonymous,
                 config.gs_config.clone(),
-                gossipsub_metrics.0,
-                gossipsub_metrics.1,
-            )
-            .map_err(|e| format!("Could not construct gossipsub: {:?}", e))?;
+                Some(gossipsub_metrics),
+                filter,
+                snappy_transform,
+            )?;
 
             gossipsub
                 .with_peer_score(params, thresholds)
@@ -328,9 +321,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
 
         let (swarm, bandwidth) = {
             // Set up the transport - tcp/ws with noise and mplex
-            let (transport, bandwidth) = build_transport(local_keypair.clone())
-                .await
-                .map_err(|e| format!("Failed to build transport: {:?}", e))?;
+            let (transport, bandwidth) = match config.libp2p_transport {
+                Libp2pTransport::Nym => build_nym_transport(local_keypair.clone()).await,
+                Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
+                Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone()).await,
+            }
+            .map_err(|e| format!("Failed to build transport: {:?}", e))?
+            .with_bandwidth_logging();
 
             // use the executor for libp2p
             struct Executor(task_executor::TaskExecutor);

@@ -4,23 +4,19 @@ use crate::types::{
     error, EnrAttestationBitfield, EnrSyncCommitteeBitfield, GossipEncoding, GossipKind,
 };
 use crate::{GossipTopic, NetworkConfig};
-#[cfg(feature = "libp2p-nym")]
 use futures::future::Either;
-use libp2p::bandwidth::BandwidthSinks;
 use libp2p::core::{
     identity::Keypair, multiaddr::Multiaddr, muxing::StreamMuxerBox, transport::Boxed,
 };
 use libp2p::gossipsub::subscription_filter::WhitelistSubscriptionFilter;
 use libp2p::gossipsub::IdentTopic as Topic;
-use libp2p::{core, noise, PeerId, Transport, TransportExt};
+use libp2p::{core, noise, PeerId, Transport};
 use prometheus_client::registry::Registry;
-#[cfg(feature = "libp2p-nym")]
 use rust_libp2p_nym::transport::NymTransport;
 use slog::{debug, warn};
 use ssz::Decode;
 use ssz::Encode;
 use std::collections::HashSet;
-#[cfg(feature = "libp2p-nym")]
 use std::env;
 use std::fs::File;
 use std::io::prelude::*;
@@ -47,58 +43,55 @@ type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 
 /// The implementation supports TCP/IP, WebSockets over TCP/IP, noise as the encryption layer, and
 /// mplex as the multiplexing layer.
-pub async fn build_transport(
-    local_private_key: Keypair,
-) -> std::io::Result<(BoxedTransport, Arc<BandwidthSinks>)> {
-    #[cfg(feature = "libp2p-nym")]
-    let nym_transport = {
-        // NOTE: hard-coded warning!!
-        //
-        // make this a config of the cli or resolve this as an error.
-        let uri = env::var("NYM_CLIENT").unwrap_or("ws://127.0.0.1:1977".to_string());
-        let nym = NymTransport::new(&uri, local_private_key.clone())
-            .await
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+pub async fn build_tcp_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
+    // mplex config
+    let mut mplex_config = libp2p::mplex::MplexConfig::new();
+    mplex_config.set_max_buffer_size(256);
+    mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
 
-        nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed()
-    };
-    #[cfg(not(feature = "libp2p-nym"))]
-    let transport = nym_transport;
+    // yamux config
+    let mut yamux_config = libp2p::yamux::YamuxConfig::default();
+    yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
 
-    #[cfg(feature = "libp2p-tcp")]
-    let tcp_transport = {
-        // mplex config
-        let mut mplex_config = libp2p::mplex::MplexConfig::new();
-        mplex_config.set_max_buffer_size(256);
-        mplex_config.set_max_buffer_behaviour(libp2p::mplex::MaxBufferBehaviour::Block);
+    let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
+    Ok(libp2p::dns::TokioDnsConfig::system(tcp)?
+        .upgrade(core::upgrade::Version::V1)
+        .authenticate(generate_noise_config(&local_private_key))
+        .multiplex(core::upgrade::SelectUpgrade::new(
+            yamux_config, // mplex config
+            mplex_config,
+        ))
+        .timeout(Duration::from_secs(10))
+        .boxed())
+}
 
-        // yamux config
-        let mut yamux_config = libp2p::yamux::YamuxConfig::default();
-        yamux_config.set_window_update_mode(libp2p::yamux::WindowUpdateMode::on_read());
+/// Build a libp2p transport that supports NYM.
+pub async fn build_nym_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
+    // NOTE: hard-coded warning!!
+    //
+    // TODO: make this a config of the cli or resolve this as an error.
+    let uri = env::var("NYM_CLIENT").unwrap_or("ws://127.0.0.1:1977".to_string());
+    let nym = NymTransport::new(&uri, local_private_key.clone())
+        .await
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-        let tcp = libp2p::tcp::tokio::Transport::new(libp2p::tcp::Config::default().nodelay(true));
-        libp2p::dns::TokioDnsConfig::system(tcp)?
-            .upgrade(core::upgrade::Version::V1)
-            .authenticate(generate_noise_config(&local_private_key))
-            .multiplex(core::upgrade::SelectUpgrade::new(
-                yamux_config, // mplex config
-                mplex_config,
-            ))
-            .timeout(Duration::from_secs(10))
-    };
-    #[cfg(not(feature = "libp2p-nym"))]
-    let transport = tcp_transport;
+    Ok(nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed())
+}
 
-    #[cfg(all(feature = "libp2p-nym", feature = "libp2p-tcp"))]
-    let transport = tcp_transport
-        .or_transport(nym_transport)
+/// Build a transport that supports both TCP and NYM connections.
+pub async fn build_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
+    let (tcp, nym) = futures::join!(
+        build_tcp_transport(local_private_key.clone()),
+        build_nym_transport(local_private_key.clone())
+    );
+
+    Ok(tcp?
+        .or_transport(nym?)
         .map(|either_output, _| match either_output {
             Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
             Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
         })
-        .boxed();
-
-    Ok(transport.with_bandwidth_logging())
+        .boxed())
 }
 
 // Useful helper functions for debugging. Currently not used in the client.

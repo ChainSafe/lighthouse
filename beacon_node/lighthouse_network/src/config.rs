@@ -7,14 +7,15 @@ use directory::{
 };
 use discv5::{Discv5Config, Discv5ConfigBuilder};
 use libp2p::gossipsub::{
-    FastMessageId, GossipsubConfig, GossipsubConfigBuilder, GossipsubMessage, MessageId,
-    RawGossipsubMessage, ValidationMode,
+    Config as GossipsubConfig, ConfigBuilder as GossipsubConfigBuilder, FastMessageId,
+    Message as GossipsubMessage, MessageId, RawMessage as RawGossipsubMessage, ValidationMode,
 };
 use libp2p::Multiaddr;
 use serde_derive::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use types::{ForkContext, ForkName};
@@ -49,6 +50,26 @@ pub fn gossip_max_size(is_merge_enabled: bool) -> usize {
         GOSSIP_MAX_SIZE_POST_MERGE
     } else {
         GOSSIP_MAX_SIZE
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Libp2pTransport {
+    Nym,
+    Tcp,
+    NymEitherTcp,
+}
+
+impl FromStr for Libp2pTransport {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "tcp" => Ok(Libp2pTransport::Tcp),
+            "nym" => Ok(Libp2pTransport::Nym),
+            "nym_either_tcp" => Ok(Libp2pTransport::NymEitherTcp),
+            _ => Err(format!("Unknown transport type: {}", s)),
+        }
     }
 }
 
@@ -139,6 +160,9 @@ pub struct Config {
 
     /// Configuration for the outbound rate limiter (requests made by this node).
     pub outbound_rate_limiter_config: Option<OutboundRateLimiterConfig>,
+
+    /// Configuration for the libp2p strategy.
+    pub libp2p_transport: Libp2pTransport,
 }
 
 impl Config {
@@ -321,6 +345,7 @@ impl Default for Config {
             metrics_enabled: false,
             enable_light_client_server: false,
             outbound_rate_limiter_config: None,
+            libp2p_transport: Libp2pTransport::NymEitherTcp,
         }
     }
 }
