@@ -66,12 +66,11 @@ pub async fn build_tcp_transport(local_private_key: Keypair) -> std::io::Result<
 }
 
 /// Build a libp2p transport that supports NYM.
-pub async fn build_nym_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
-    // NOTE: hard-coded warning!!
-    //
-    // TODO: make this a config of the cli or resolve this as an error.
-    let uri = env::var("NYM_CLIENT").unwrap_or("ws://127.0.0.1:1977".to_string());
-    let nym = NymTransport::new(&uri, local_private_key.clone())
+pub async fn build_nym_transport(
+    local_private_key: Keypair,
+    nym_client_uri: String,
+) -> std::io::Result<BoxedTransport> {
+    let nym = NymTransport::new(&nym_client_uri, local_private_key.clone())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
@@ -79,10 +78,13 @@ pub async fn build_nym_transport(local_private_key: Keypair) -> std::io::Result<
 }
 
 /// Build a transport that supports both TCP and NYM connections.
-pub async fn build_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
+pub async fn build_transport(
+    local_private_key: Keypair,
+    nym_client_uri: String,
+) -> std::io::Result<BoxedTransport> {
     let (tcp, nym) = futures::join!(
         build_tcp_transport(local_private_key.clone()),
-        build_nym_transport(local_private_key.clone())
+        build_nym_transport(local_private_key, nym_client_uri)
     );
 
     Ok(tcp?

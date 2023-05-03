@@ -163,6 +163,9 @@ pub struct Config {
 
     /// Configuration for the libp2p strategy.
     pub libp2p_transport: Libp2pTransport,
+
+    /// The uri of the nym client
+    pub nym_client_address: ListenAddr<Ipv4Addr>,
 }
 
 impl Config {
@@ -346,6 +349,11 @@ impl Default for Config {
             enable_light_client_server: false,
             outbound_rate_limiter_config: None,
             libp2p_transport: Libp2pTransport::NymEitherTcp,
+            nym_client_address: ListenAddr {
+                addr: Ipv4Addr::UNSPECIFIED,
+                udp_port: 1977,
+                tcp_port: 1977,
+            },
         }
     }
 }
