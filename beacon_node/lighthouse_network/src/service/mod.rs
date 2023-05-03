@@ -1,6 +1,6 @@
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
-use crate::config::{gossipsub_config, Libp2pStrategy, NetworkLoad};
+use crate::config::{gossipsub_config, Libp2pTransport, NetworkLoad};
 use crate::discovery::{
     subnet_predicate, DiscoveredPeers, Discovery, FIND_NODE_QUERY_CLOSEST_PEERS,
 };
@@ -321,10 +321,10 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
 
         let (swarm, bandwidth) = {
             // Set up the transport - tcp/ws with noise and mplex
-            let (transport, bandwidth) = match config.libp2p_strategy {
-                Libp2pStrategy::Nym => build_nym_transport(local_keypair.clone()).await,
-                Libp2pStrategy::Tcp => build_tcp_transport(local_keypair.clone()).await,
-                Libp2pStrategy::NymOrTcp => build_transport(local_keypair.clone()).await,
+            let (transport, bandwidth) = match config.libp2p_transport {
+                Libp2pTransport::Nym => build_nym_transport(local_keypair.clone()).await,
+                Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
+                Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone()).await,
             }
             .map_err(|e| format!("Failed to build transport: {:?}", e))?
             .with_bandwidth_logging();

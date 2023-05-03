@@ -261,6 +261,13 @@ pub fn cli_app<'a, 'b>() -> App<'a, 'b> {
             .min_values(0)
             .hidden(true)
         )
+        .arg(
+            Arg::with_name("transport")
+            .long("transport")
+            .short("t")
+            .help("specify libp2p transport")
+            .takes_value(true)
+        )
         /* REST API related arguments */
         .arg(
             Arg::with_name("http")

@@ -15,6 +15,7 @@ use serde_derive::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use types::{ForkContext, ForkName};
@@ -53,10 +54,23 @@ pub fn gossip_max_size(is_merge_enabled: bool) -> usize {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Libp2pStrategy {
+pub enum Libp2pTransport {
     Nym,
     Tcp,
-    NymOrTcp,
+    NymEitherTcp,
+}
+
+impl FromStr for Libp2pTransport {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s {
+            "tcp" => Ok(Libp2pTransport::Tcp),
+            "nym" => Ok(Libp2pTransport::Nym),
+            "nym_either_tcp" => Ok(Libp2pTransport::NymEitherTcp),
+            _ => Err(format!("Unknown transport type: {}", s)),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -148,7 +162,7 @@ pub struct Config {
     pub outbound_rate_limiter_config: Option<OutboundRateLimiterConfig>,
 
     /// Configuration for the libp2p strategy.
-    pub libp2p_strategy: Libp2pStrategy,
+    pub libp2p_transport: Libp2pTransport,
 }
 
 impl Config {
@@ -331,7 +345,7 @@ impl Default for Config {
             metrics_enabled: false,
             enable_light_client_server: false,
             outbound_rate_limiter_config: None,
-            libp2p_strategy: Libp2pStrategy::NymOrTcp,
+            libp2p_transport: Libp2pTransport::NymEitherTcp,
         }
     }
 }
