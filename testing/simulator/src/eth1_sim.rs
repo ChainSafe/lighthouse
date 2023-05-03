@@ -124,7 +124,7 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
             }
 
             println!("Setting up {} nym clients...", count);
-            future::join_all((0..count).map(|_| NymClient::new())).await
+            future::join_all((0..count).map(|_| NymClient::start())).await
         };
 
         let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
@@ -222,25 +222,25 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
          */
         for _ in 0..nym_node_count {
             let mut config = beacon_config.clone();
-            let port = nym_ports
-                .pop()
-                .unwrap_or_else(|| unreachable!("checked above"));
-            config.network.libp2p_transport = Libp2pTransport::Nym;
-            config.network.nym_client_address.tcp_port = port;
-            network.add_beacon_node(config.clone()).await?;
+            // TODO: unreachable! in else block
+            if let Some(port) = nym_ports.pop() {
+                config.network.libp2p_transport = Libp2pTransport::Nym;
+                config.network.nym_client_address.tcp_port = port;
+                network.add_beacon_node(config.clone()).await?;
+            }
         }
 
         /*
          * One by one, add beacon nodes with nym either tcp transport to the network.
          */
-        for _ in 0..either_node_count - 1 {
+        for _ in 0..either_node_count {
             let mut config = beacon_config.clone();
-            let port = nym_ports
-                .pop()
-                .unwrap_or_else(|| unreachable!("checked above"));
-            config.network.libp2p_transport = Libp2pTransport::NymEitherTcp;
-            config.network.nym_client_address.tcp_port = port;
-            network.add_beacon_node(config.clone()).await?;
+            // TODO: unreachable! in else block
+            if let Some(port) = nym_ports.pop() {
+                config.network.libp2p_transport = Libp2pTransport::NymEitherTcp;
+                config.network.nym_client_address.tcp_port = port;
+                network.add_beacon_node(config.clone()).await?;
+            }
         }
 
         /*

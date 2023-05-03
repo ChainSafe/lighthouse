@@ -15,3 +15,4 @@ validator_dir = { path = "../../common/validator_dir", features = ["insecure_key
 sensitive_url = { path = "../../common/sensitive_url" }
 execution_layer = { path = "../../beacon_node/execution_layer" }
 rand = "0.8.5"
+tokio = { version = "1.28.0", features = ["process"] }

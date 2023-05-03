@@ -1,12 +1,9 @@
 //! Instance of nym client
 
 use rand::Rng;
-use std::{
-    io::{BufRead, BufReader},
-    net::TcpListener,
-    ops::Range,
-    process::{Child, Command, Stdio},
-};
+use std::{net::TcpListener, ops::Range, process::Stdio};
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::{Child, Command};
 
 const LOCALHOST: &str = "0.0.0.0";
 const PORT_RANGE: Range<u16> = 15000..25000;
@@ -25,12 +22,11 @@ fn pick_port() -> u16 {
 
 /// Instance of nym client
 pub struct NymClient {
-    ps: Child,
     pub port: u16,
 }
 
 impl NymClient {
-    pub async fn new() -> Self {
+    pub async fn start() -> Self {
         let port = pick_port();
         let id = port.to_string();
 
@@ -40,36 +36,31 @@ impl NymClient {
             .arg("--id")
             .arg(&id)
             .output()
+            .await
             .expect("Failed to init nym-client");
 
         // start nym-client
         let mut ps = Command::new("nym-client")
+            .kill_on_drop(true)
             .arg("run")
             .arg("--id")
             .arg(&id)
             .arg("--port")
             .arg(&id)
             .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
             .spawn()
             .expect("Failed to start nym-client");
 
         // wait for connection established
-        let stderr = ps.stderr.as_mut();
-        let reader = BufReader::new(stderr.expect("Failed to get stderr"));
-        for line in reader.lines().flatten() {
+        let stderr = ps.stderr.take().expect("Failed to get stderr");
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
             if line.contains("The address of this client is") {
                 println!("{line}");
                 break;
             }
         }
 
-        Self { ps, port }
-    }
-}
-
-impl Drop for NymClient {
-    fn drop(&mut self) {
-        self.ps.kill().expect("Failed to kill process")
+        Self { port }
     }
 }
