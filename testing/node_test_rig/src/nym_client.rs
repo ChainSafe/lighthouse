@@ -22,6 +22,7 @@ fn pick_port() -> u16 {
 
 /// Instance of nym client
 pub struct NymClient {
+    ps: Child,
     pub port: u16,
 }
 
@@ -62,6 +63,10 @@ impl NymClient {
             }
         }
 
-        Self { port }
+        Self { ps, port }
+    }
+
+    pub fn process(self) -> Child {
+        self.ps
     }
 }
