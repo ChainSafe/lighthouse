@@ -14,13 +14,15 @@ use types::EthSpec;
 use validator_client::ProductionValidatorClient;
 use validator_dir::insecure_keys::build_deterministic_validator_dirs;
 
-pub use beacon_node::{ClientConfig, ClientGenesis, ProductionClient};
+pub use beacon_node::{ClientConfig, ClientGenesis, Libp2pTransport, ProductionClient};
 pub use environment;
 pub use eth2;
 pub use execution_layer::test_utils::{
     Config as MockServerConfig, MockExecutionConfig, MockServer,
 };
 pub use validator_client::Config as ValidatorConfig;
+
+pub mod nym_client;
 
 /// The global timeout for HTTP requests to the beacon node.
 const HTTP_TIMEOUT: Duration = Duration::from_secs(4);

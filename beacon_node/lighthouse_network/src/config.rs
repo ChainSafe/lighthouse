@@ -67,7 +67,7 @@ impl FromStr for Libp2pTransport {
         match s {
             "tcp" => Ok(Libp2pTransport::Tcp),
             "nym" => Ok(Libp2pTransport::Nym),
-            "nym_either_tcp" => Ok(Libp2pTransport::NymEitherTcp),
+            "nym-either-tcp" => Ok(Libp2pTransport::NymEitherTcp),
             _ => Err(format!("Unknown transport type: {}", s)),
         }
     }
@@ -163,6 +163,9 @@ pub struct Config {
 
     /// Configuration for the libp2p strategy.
     pub libp2p_transport: Libp2pTransport,
+
+    /// The uri of the nym client
+    pub nym_client_address: ListenAddr<Ipv4Addr>,
 }
 
 impl Config {
@@ -228,6 +231,10 @@ impl Config {
             (Some(ip4), None) => is_global_ipv4(ip4),
             (Some(ip4), Some(ip6)) => is_global_ipv4(ip4) && is_global_ipv6(ip6),
         };
+    }
+
+    pub fn set_nym_client_addr(&mut self, listen_addr: ListenAddr<Ipv4Addr>) {
+        self.nym_client_address = listen_addr;
     }
 
     pub fn set_listening_addr(&mut self, listen_addr: ListenAddress) {
@@ -346,6 +353,11 @@ impl Default for Config {
             enable_light_client_server: false,
             outbound_rate_limiter_config: None,
             libp2p_transport: Libp2pTransport::NymEitherTcp,
+            nym_client_address: ListenAddr {
+                addr: Ipv4Addr::UNSPECIFIED,
+                udp_port: 1977,
+                tcp_port: 1977,
+            },
         }
     }
 }

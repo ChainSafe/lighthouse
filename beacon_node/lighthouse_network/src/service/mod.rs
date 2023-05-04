@@ -320,11 +320,15 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         };
 
         let (swarm, bandwidth) = {
+            let nym_addr = config.nym_client_address.clone();
+            let uri = format!("ws://{}:{}", nym_addr.addr, nym_addr.tcp_port);
+            info!(log, "Connecting to nym client"; "address" => &uri);
+
             // Set up the transport - tcp/ws with noise and mplex
             let (transport, bandwidth) = match config.libp2p_transport {
-                Libp2pTransport::Nym => build_nym_transport(local_keypair.clone()).await,
+                Libp2pTransport::Nym => build_nym_transport(local_keypair.clone(), uri).await,
                 Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
-                Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone()).await,
+                Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone(), uri).await,
             }
             .map_err(|e| format!("Failed to build transport: {:?}", e))?
             .with_bandwidth_logging();

@@ -8,7 +8,9 @@ use execution_layer::http::deposit_methods::Eth1Id;
 use futures::prelude::*;
 use node_test_rig::{
     environment::{EnvironmentBuilder, LoggerConfig},
-    testing_client_config, testing_validator_config, ClientGenesis, ValidatorFiles,
+    nym_client::NymClient,
+    testing_client_config, testing_validator_config, ClientGenesis, Libp2pTransport,
+    ValidatorFiles,
 };
 use rayon::prelude::*;
 use sensitive_url::SensitiveUrl;
@@ -26,7 +28,12 @@ const SUGGESTED_FEE_RECIPIENT: [u8; 20] =
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
 
 pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
-    let node_count = value_t!(matches, "nodes", usize).expect("missing nodes default");
+    let leading = value_t!(matches, "leading-node", Libp2pTransport).expect("missing leading_node");
+    let nym_node_count = value_t!(matches, "nym-nodes", usize).expect("missing nym-nodes default");
+    let tcp_node_count = value_t!(matches, "tcp-nodes", usize).expect("missing tcp-nodes default");
+    let either_node_count =
+        value_t!(matches, "either-nodes", usize).expect("missing tcp-nodes default");
+    let node_count = nym_node_count + tcp_node_count + either_node_count + 1; // 1 here is for the leading node.
     let validators_per_node = value_t!(matches, "validators_per_node", usize)
         .expect("missing validators_per_node default");
     let speed_up_factor =
@@ -103,6 +110,25 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
     let context = env.core_context();
 
     let main_future = async {
+        // Setting up nym clients.
+        //
+        // # NOTE
+        //
+        // the process of the clients will be dropped if we return the ports
+        // directly in the block below, so returning the instances of nym clients
+        // is necessary here.
+        let nym_clients = {
+            let mut count = nym_node_count + either_node_count;
+            if !matches!(leading, Libp2pTransport::Tcp) {
+                count += 1;
+            }
+
+            println!("Setting up {} nym clients...", count);
+            future::join_all((0..count).map(|_| NymClient::start())).await
+        };
+
+        let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
+
         /*
          * Deploy the deposit contract, spawn tasks to keep creating new blocks and deposit
          * validators.
@@ -149,8 +175,15 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         beacon_config.eth1.auto_update_interval_millis = eth1_block_time.as_millis() as u64;
         beacon_config.eth1.chain_id = Eth1Id::from(chain_id);
         beacon_config.network.target_peers = node_count - 1;
-
+        beacon_config.network.libp2p_transport = leading.clone();
         beacon_config.network.enr_address = (Some(Ipv4Addr::LOCALHOST), None);
+
+        if !matches!(&leading, Libp2pTransport::Tcp) {
+            let port = nym_ports
+                .pop()
+                .unwrap_or_else(|| unreachable!("checked above"));
+            beacon_config.network.nym_client_address.tcp_port = port;
+        }
 
         if post_merge_sim {
             let el_config = execution_layer::Config {
@@ -171,10 +204,43 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         let network = LocalNetwork::new(context.clone(), beacon_config.clone()).await?;
 
         /*
-         * One by one, add beacon nodes to the network.
+         * One by one, add beacon nodes with tcp transport to the network.
          */
-        for _ in 0..node_count - 1 {
-            network.add_beacon_node(beacon_config.clone()).await?;
+        {
+            if tcp_node_count > 0 {
+                let mut config = beacon_config.clone();
+                config.network.libp2p_transport = Libp2pTransport::Tcp;
+
+                for _ in 0..tcp_node_count {
+                    network.add_beacon_node(config.clone()).await?;
+                }
+            }
+        }
+
+        /*
+         * One by one, add beacon nodes with nym transport to the network.
+         */
+        for _ in 0..nym_node_count {
+            let mut config = beacon_config.clone();
+            // TODO: unreachable! in else block
+            if let Some(port) = nym_ports.pop() {
+                config.network.libp2p_transport = Libp2pTransport::Nym;
+                config.network.nym_client_address.tcp_port = port;
+                network.add_beacon_node(config.clone()).await?;
+            }
+        }
+
+        /*
+         * One by one, add beacon nodes with nym either tcp transport to the network.
+         */
+        for _ in 0..either_node_count {
+            let mut config = beacon_config.clone();
+            // TODO: unreachable! in else block
+            if let Some(port) = nym_ports.pop() {
+                config.network.libp2p_transport = Libp2pTransport::NymEitherTcp;
+                config.network.nym_client_address.tcp_port = port;
+                network.add_beacon_node(config.clone()).await?;
+            }
         }
 
         /*
