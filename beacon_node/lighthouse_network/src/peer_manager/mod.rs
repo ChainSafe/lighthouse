@@ -900,7 +900,7 @@ impl<TSpec: EthSpec> PeerManager<TSpec> {
 
             if wanted_peers != 0 {
                 // We need more peers, re-queue a discovery lookup.
-                debug!(self.log, "Starting a new peer discovery query"; "connected" => peer_count, "target" => self.target_peers, "outbound" => outbound_only_peer_count, "wanted" => wanted_peers);
+                trace!(self.log, "Starting a new peer discovery query"; "connected" => peer_count, "target" => self.target_peers, "outbound" => outbound_only_peer_count, "wanted" => wanted_peers);
                 self.events
                     .push(PeerManagerEvent::DiscoverPeers(wanted_peers));
             }

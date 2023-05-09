@@ -23,7 +23,7 @@ pub use eth2_config::Eth2Config;
 /// Holds references to running services, cleanly shutting them down when dropped.
 pub struct Client<T: BeaconChainTypes> {
     beacon_chain: Option<Arc<BeaconChain<T>>>,
-    network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
+    pub network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
     /// Listen address for the standard eth2.0 API, if the service was started.
     http_api_listen_addr: Option<SocketAddr>,
     /// Listen address for the HTTP server which serves Prometheus metrics.
@@ -63,6 +63,18 @@ impl<T: BeaconChainTypes> Client<T> {
     /// Returns the list of libp2p addresses the client is listening to.
     pub fn libp2p_listen_addresses(&self) -> Option<Vec<Multiaddr>> {
         self.network_globals.as_ref().map(|n| n.listen_multiaddrs())
+    }
+
+    /// Returns the list of known addresses for testing usages.
+    pub fn known_multiaddrs(&self) -> Option<Vec<Multiaddr>> {
+        self.network_globals.as_ref().map(|n| n.known_multiaddrs())
+    }
+
+    /// Returns the list of known addresses for testing usages.
+    pub fn set_known_multiaddrs(&self, addrs: Vec<Multiaddr>) -> Option<Vec<Multiaddr>> {
+        self.network_globals
+            .as_ref()
+            .map(|n| n.set_known_multiaddrs(addrs))
     }
 
     /// Returns the local libp2p ENR of this node, for network discovery.

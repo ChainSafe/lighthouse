@@ -1,3 +1,4 @@
+use multiaddr::Multiaddr;
 use node_test_rig::{
     environment::RuntimeContext,
     eth2::{types::StateId, BeaconNodeHttpClient},
@@ -14,7 +15,7 @@ use std::{sync::Arc, time::Duration};
 use types::{Epoch, EthSpec};
 
 const BOOTNODE_PORT: u16 = 42424;
-pub const INVALID_ADDRESS: &str = "http://127.0.0.1:42423";
+// pub const INVALID_ADDRESS: &str = "http://127.0.0.1:42423";
 
 pub const EXECUTION_PORT: u16 = 4000;
 
@@ -119,6 +120,22 @@ impl<E: EthSpec> LocalNetwork<E> {
         self.validator_clients.read().len()
     }
 
+    pub fn listen_addrs(&self) -> Vec<Multiaddr> {
+        self.beacon_nodes
+            .read()
+            .iter()
+            .filter_map(|node| node.client.libp2p_listen_addresses())
+            .flatten()
+            .collect()
+    }
+
+    pub fn update_known_addrs(&self) {
+        let listen_addrs = self.listen_addrs();
+        self.beacon_nodes.read().iter().for_each(|node| {
+            node.client.set_known_multiaddrs(listen_addrs.clone());
+        });
+    }
+
     /// Adds a beacon node to the network, connecting to the 0'th beacon node via ENR.
     pub async fn add_beacon_node(&self, mut beacon_config: ClientConfig) -> Result<(), String> {
         let self_1 = self.clone();
@@ -143,6 +160,7 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.discv5_config.table_filter = |_| true;
+            beacon_config.network.libp2p_nodes = self.listen_addrs();
         }
         if let Some(el_config) = &mut beacon_config.execution_layer {
             let config = MockExecutionConfig {
@@ -174,6 +192,8 @@ impl<E: EthSpec> LocalNetwork<E> {
         )
         .await?;
         self_1.beacon_nodes.write().push(beacon_node);
+        self.update_known_addrs();
+
         Ok(())
     }
 
@@ -184,7 +204,7 @@ impl<E: EthSpec> LocalNetwork<E> {
         mut validator_config: ValidatorConfig,
         beacon_node: usize,
         validator_files: ValidatorFiles,
-        invalid_first_beacon_node: bool, //to test beacon node fallbacks
+        _invalid_first_beacon_node: bool, //to test beacon node fallbacks
     ) -> Result<(), String> {
         let context = self
             .context
@@ -205,11 +225,13 @@ impl<E: EthSpec> LocalNetwork<E> {
             format!("http://{}:{}", socket_addr.ip(), socket_addr.port()).as_str(),
         )
         .unwrap();
-        validator_config.beacon_nodes = if invalid_first_beacon_node {
-            vec![SensitiveUrl::parse(INVALID_ADDRESS).unwrap(), beacon_node]
-        } else {
-            vec![beacon_node]
-        };
+        // validator_config.beacon_nodes = if invalid_first_beacon_node {
+        //     vec![SensitiveUrl::parse(INVALID_ADDRESS).unwrap(), beacon_node]
+        // } else {
+        //     vec![beacon_node]
+        // };
+
+        validator_config.beacon_nodes = vec![beacon_node];
         let validator_client = LocalValidatorClient::production_with_insecure_keypairs(
             context,
             validator_config,
@@ -253,6 +275,7 @@ impl<E: EthSpec> LocalNetwork<E> {
 
     pub async fn duration_to_genesis(&self) -> Duration {
         let nodes = self.remote_nodes().expect("Failed to get remote nodes");
+        // println!("remote nodes: {:?}", nodes);
         let bootnode = nodes.first().expect("Should contain bootnode");
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let genesis_time = Duration::from_secs(

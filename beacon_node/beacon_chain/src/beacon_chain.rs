@@ -216,7 +216,8 @@ pub enum OverrideForkchoiceUpdate {
 /// The accepted clock drift for nodes gossiping blocks and attestations. See:
 ///
 /// https://github.com/ethereum/eth2.0-specs/blob/v0.12.1/specs/phase0/p2p-interface.md#configuration
-pub const MAXIMUM_GOSSIP_CLOCK_DISPARITY: Duration = Duration::from_millis(500);
+// pub const MAXIMUM_GOSSIP_CLOCK_DISPARITY: Duration = Duration::from_millis(500);
+pub const MAXIMUM_GOSSIP_CLOCK_DISPARITY: Duration = Duration::from_millis(1500);
 
 #[derive(Debug, PartialEq)]
 pub enum AttestationProcessingOutcome {

@@ -7358,7 +7358,6 @@ dependencies = [
 [[package]]
 name = "rust-libp2p-nym"
 version = "0.1.0"
-source = "git+https://github.com/ChainSafe/rust-libp2p-nym.git?rev=85478df09002da8f114133330e54297458c2911a#85478df09002da8f114133330e54297458c2911a"
 dependencies = [
  "futures",
  "hex",
@@ -8043,6 +8042,7 @@ dependencies = [
  "eth1_test_rig",
  "execution_layer",
  "futures",
+ "multiaddr 0.17.0",
  "node_test_rig",
  "parking_lot 0.12.1",
  "rayon",

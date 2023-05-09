@@ -30,6 +30,9 @@ pub struct NetworkGlobals<TSpec: EthSpec> {
     pub sync_state: RwLock<SyncState>,
     /// The current state of the backfill sync.
     pub backfill_state: RwLock<BackFillState>,
+
+    /// nym multiaddrs of known peers ( testing usage for now ).
+    known_multiaddrs: RwLock<Vec<Multiaddr>>,
 }
 
 impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
@@ -52,6 +55,7 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
             gossipsub_subscriptions: RwLock::new(HashSet::new()),
             sync_state: RwLock::new(SyncState::Stalled),
             backfill_state: RwLock::new(BackFillState::NotRequired),
+            known_multiaddrs: RwLock::new(Vec::new()),
         }
     }
 
@@ -125,6 +129,16 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
     /// The old state is returned
     pub fn set_sync_state(&self, new_state: SyncState) -> SyncState {
         std::mem::replace(&mut *self.sync_state.write(), new_state)
+    }
+
+    /// TESTING ONLY.
+    pub fn known_multiaddrs(&self) -> Vec<Multiaddr> {
+        self.known_multiaddrs.read().clone()
+    }
+
+    /// TESTING ONLY.
+    pub fn set_known_multiaddrs(&self, addrs: Vec<Multiaddr>) -> Vec<Multiaddr> {
+        std::mem::replace(&mut *self.known_multiaddrs.write(), addrs)
     }
 
     /// TESTING ONLY. Build a dummy NetworkGlobals instance.
