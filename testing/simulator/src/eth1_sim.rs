@@ -111,26 +111,26 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
     let context = env.core_context();
 
     let main_future = async {
-        // // Setting up nym clients.
-        // //
-        // // # NOTE
-        // //
-        // // the process of the clients will be dropped if we return the ports
-        // // directly in the block below, so returning the instances of nym clients
-        // // is necessary here.
-        // let nym_clients = {
-        //     // let mut count = nym_node_count + either_node_count;
-        //     // if !matches!(leading, Libp2pTransport::Tcp) {
-        //     //     count += 1;
-        //     // }
+        // Setting up nym clients.
         //
-        //     println!("Setting up {} nym clients...", node_count);
-        //     future::join_all((0..node_count).map(|_| NymClient::start())).await
-        // };
+        // # NOTE
         //
-        // let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
-        let nym_client = NymClient::start().await;
-        let nym_port = nym_client.port;
+        // the process of the clients will be dropped if we return the ports
+        // directly in the block below, so returning the instances of nym clients
+        // is necessary here.
+        let nym_clients = {
+            // let mut count = nym_node_count + either_node_count;
+            // if !matches!(leading, Libp2pTransport::Tcp) {
+            //     count += 1;
+            // }
+
+            println!("Setting up {} nym clients...", node_count);
+            future::join_all((0..node_count).map(|_| NymClient::start())).await
+        };
+
+        let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
+        // let nym_client = NymClient::start().await;
+        // let nym_port = nym_client.port;
 
         /*
          * Deploy the deposit contract, spawn tasks to keep creating new blocks and deposit
@@ -184,10 +184,10 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         // if !matches!(&leading, Libp2pTransport::Tcp) {
         // set up nym client
         {
-            // let port = nym_ports
-            //     .pop()
-            //     .unwrap_or_else(|| unreachable!("checked above"));
-            beacon_config.network.nym_client_address.tcp_port = nym_port;
+            let port = nym_ports
+                .pop()
+                .unwrap_or_else(|| unreachable!("checked above"));
+            beacon_config.network.nym_client_address.tcp_port = port;
         }
         // }
 
@@ -215,15 +215,16 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         for _ in 0..node_count - 1 {
             let mut config = beacon_config.clone();
             // TODO: unreachable! in else block
-            // if let Some(port) = nym_ports.pop() {
-            //     config.network.libp2p_transport = Libp2pTransport::Nym;
-            //     config.network.nym_client_address.tcp_port = port;
-            //     network.add_beacon_node(config.clone()).await?;
-            // }
-            config.network.libp2p_transport = Libp2pTransport::Nym;
-            config.network.nym_client_address.tcp_port = nym_port;
-            network.add_beacon_node(config.clone()).await?;
+            if let Some(port) = nym_ports.pop() {
+                config.network.libp2p_transport = Libp2pTransport::Nym;
+                config.network.nym_client_address.tcp_port = port;
+                network.add_beacon_node(config.clone()).await?;
+            } else {
+                unreachable!("checked above");
+            }
         }
+
+        assert_eq!(network.listen_addrs().len(), node_count);
 
         // /*
         //  * One by one, add beacon nodes with tcp transport to the network.

@@ -15,6 +15,7 @@ eth2_network_config = { path = "../../common/eth2_network_config" }
 logging = { path = "../../common/logging" }
 slog-term = "2.6.0"
 slog-async = "2.5.0"
+slog-scope = "4.4.0"
 futures = "0.3.7"
 slog-json = "2.3.0"
 exit-future = "0.2.0"

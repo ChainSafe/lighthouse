@@ -10,6 +10,7 @@ pub mod error;
 
 use beacon_chain::BeaconChain;
 use lighthouse_network::{Enr, Multiaddr, NetworkGlobals};
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -17,13 +18,14 @@ pub use beacon_chain::{BeaconChainTypes, Eth1ChainBackend};
 pub use builder::ClientBuilder;
 pub use config::{ClientGenesis, Config as ClientConfig};
 pub use eth2_config::Eth2Config;
+use libp2p::PeerId;
 
 /// The core "beacon node" client.
 ///
 /// Holds references to running services, cleanly shutting them down when dropped.
 pub struct Client<T: BeaconChainTypes> {
     beacon_chain: Option<Arc<BeaconChain<T>>>,
-    pub network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
+    network_globals: Option<Arc<NetworkGlobals<T::EthSpec>>>,
     /// Listen address for the standard eth2.0 API, if the service was started.
     http_api_listen_addr: Option<SocketAddr>,
     /// Listen address for the HTTP server which serves Prometheus metrics.
@@ -65,16 +67,17 @@ impl<T: BeaconChainTypes> Client<T> {
         self.network_globals.as_ref().map(|n| n.listen_multiaddrs())
     }
 
-    /// Returns the list of known addresses for testing usages.
-    pub fn known_multiaddrs(&self) -> Option<Vec<Multiaddr>> {
-        self.network_globals.as_ref().map(|n| n.known_multiaddrs())
-    }
-
-    /// Returns the list of known addresses for testing usages.
-    pub fn set_known_multiaddrs(&self, addrs: Vec<Multiaddr>) -> Option<Vec<Multiaddr>> {
+    pub fn set_trust_peers(
+        &self,
+        peers: HashMap<PeerId, Multiaddr>,
+    ) -> Option<HashMap<PeerId, Multiaddr>> {
         self.network_globals
             .as_ref()
-            .map(|n| n.set_known_multiaddrs(addrs))
+            .map(|n| n.set_trust_peers(peers))
+    }
+
+    pub fn peer_id(&self) -> Option<PeerId> {
+        Some(self.network_globals.clone()?.local_peer_id())
     }
 
     /// Returns the local libp2p ENR of this node, for network discovery.

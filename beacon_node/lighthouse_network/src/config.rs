@@ -303,7 +303,7 @@ impl Default for Config {
         let discv5_config = Discv5ConfigBuilder::new()
             .enable_packet_filter()
             .session_cache_capacity(5000)
-            .request_timeout(Duration::from_secs(1))
+            .request_timeout(Duration::from_secs(5))
             .query_peer_timeout(Duration::from_secs(2))
             .query_timeout(Duration::from_secs(30))
             .request_retries(1)

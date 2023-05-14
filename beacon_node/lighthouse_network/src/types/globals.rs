@@ -6,7 +6,7 @@ use crate::Client;
 use crate::EnrExt;
 use crate::{Enr, GossipTopic, Multiaddr, PeerId};
 use parking_lot::RwLock;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use types::EthSpec;
 
 pub struct NetworkGlobals<TSpec: EthSpec> {
@@ -31,8 +31,7 @@ pub struct NetworkGlobals<TSpec: EthSpec> {
     /// The current state of the backfill sync.
     pub backfill_state: RwLock<BackFillState>,
 
-    /// nym multiaddrs of known peers ( testing usage for now ).
-    known_multiaddrs: RwLock<Vec<Multiaddr>>,
+    trust_peers: RwLock<HashMap<PeerId, Multiaddr>>,
 }
 
 impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
@@ -55,7 +54,7 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
             gossipsub_subscriptions: RwLock::new(HashSet::new()),
             sync_state: RwLock::new(SyncState::Stalled),
             backfill_state: RwLock::new(BackFillState::NotRequired),
-            known_multiaddrs: RwLock::new(Vec::new()),
+            trust_peers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -132,13 +131,13 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
     }
 
     /// TESTING ONLY.
-    pub fn known_multiaddrs(&self) -> Vec<Multiaddr> {
-        self.known_multiaddrs.read().clone()
+    pub fn trust_peers(&self) -> HashMap<PeerId, Multiaddr> {
+        self.trust_peers.read().clone()
     }
 
     /// TESTING ONLY.
-    pub fn set_known_multiaddrs(&self, addrs: Vec<Multiaddr>) -> Vec<Multiaddr> {
-        std::mem::replace(&mut *self.known_multiaddrs.write(), addrs)
+    pub fn set_trust_peers(&self, peers: HashMap<PeerId, Multiaddr>) -> HashMap<PeerId, Multiaddr> {
+        std::mem::replace(&mut *self.trust_peers.write(), peers)
     }
 
     /// TESTING ONLY. Build a dummy NetworkGlobals instance.

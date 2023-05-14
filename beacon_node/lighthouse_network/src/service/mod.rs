@@ -46,9 +46,7 @@ use types::ForkName;
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext, Slot, SubnetId,
 };
-use utils::{
-    build_nym_transport, strip_peer_id, Context as ServiceContext, MAX_CONNECTIONS_PER_PEER,
-};
+use utils::{build_nym_transport, Context as ServiceContext, MAX_CONNECTIONS_PER_PEER};
 
 pub mod api_types;
 mod behaviour;
@@ -451,36 +449,40 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             }
         };
 
-        // helper closure for dialing peers
-        let mut dial = |mut multiaddr: Multiaddr| {
-            // strip the p2p protocol if it exists
-            strip_peer_id(&mut multiaddr);
-            match self.swarm.dial(multiaddr.clone()) {
-                Ok(()) => debug!(self.log, "Dialing libp2p peer"; "address" => %multiaddr),
-                Err(err) => {
-                    debug!(self.log, "Could not connect to peer"; "address" => %multiaddr, "error" => ?err)
-                }
-            };
-        };
+        // // helper closure for dialing peers
+        // let mut dial = |mut multiaddr: Multiaddr| {
+        //     // strip the p2p protocol if it exists
+        //     strip_peer_id(&mut multiaddr);
+        //     match self.swarm.dial(multiaddr.clone()) {
+        //         Ok(()) => debug!(self.log, "Dialing libp2p peer"; "address" => %multiaddr),
+        //         Err(err) => {
+        //             debug!(self.log, "Could not connect to peer"; "address" => %multiaddr, "error" => ?err)
+        //         }
+        //     };
+        // };
 
-        info!(self.log, "libp2p nodes"; "nym nodes" => ?config.libp2p_nodes);
+        // info!(self.log, "libp2p nodes"; "nym nodes" => ?config.libp2p_nodes);
         // attempt to connect to user-input libp2p nodes
-        for multiaddr in &config.libp2p_nodes {
-            if multiaddr == &self.address {
-                continue;
-            }
+        // for multiaddr in &config.libp2p_nodes {
+        //     if multiaddr == &self.address {
+        //         continue;
+        //     }
+        //
+        //     dial(multiaddr.clone());
+        // }
 
-            dial(multiaddr.clone());
-        }
-
-        // attempt to connect to known libp2p nodes
-        for multiaddr in &self.network_globals.known_multiaddrs() {
-            if multiaddr == &self.address {
-                continue;
-            }
-
-            dial(multiaddr.clone());
-        }
+        // debug!(
+        //     self.log, "known multiaddrs"; "multiaddrs" => ?self.network_globals.known_multiaddrs()
+        // );
+        //
+        // // attempt to connect to known libp2p nodes
+        // for multiaddr in &self.network_globals.known_multiaddrs() {
+        //     if multiaddr == &self.address {
+        //         continue;
+        //     }
+        //
+        //     dial(multiaddr.clone());
+        // }
 
         // // attempt to connect to any specified boot-nodes
         // let mut boot_nodes = config.boot_nodes_enr.clone();
@@ -1483,6 +1485,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     // BehaviourEvent::Discovery(_) => None,
                     BehaviourEvent::Identify(ie) => self.inject_identify_event(ie),
                     BehaviourEvent::PeerManager(pe) => self.inject_pm_event(pe),
+                    // BehaviourEvent::PeerManager(_) => None,
                     BehaviourEvent::Relay(_) => todo!(),
                 },
                 SwarmEvent::ConnectionEstablished { .. } => None,

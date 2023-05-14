@@ -102,7 +102,8 @@ tree_hash_derive = { path = "consensus/tree_hash_derive" }
 eth2_serde_utils = { path = "consensus/serde_utils" }
 arbitrary = { git = "https://github.com/michaelsproul/arbitrary", rev="a572fd8743012a4f1ada5ee5968b1b3619c427ba" }
 
-libp2p = { git = "https://github.com/ChainSafe/rust-libp2p.git", rev = "e3440d25681df380c9f0f8cfdcfd5ecc0a4f2fb6" }
+# libp2p = { git = "https://github.com/ChainSafe/rust-libp2p.git", rev = "e3440d25681df380c9f0f8cfdcfd5ecc0a4f2fb6" }
+libp2p = { path = "../rust-libp2p" }
 multiaddr = { git = "https://github.com/ChainSafe/rust-multiaddr.git", rev = "2d21365f880622adf1c8e594b72e671dbac9dd64" }
 
 [patch."https://github.com/ralexstokes/mev-rs"]

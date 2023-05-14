@@ -1,3 +1,4 @@
+use libp2p::PeerId;
 use multiaddr::Multiaddr;
 use node_test_rig::{
     environment::RuntimeContext,
@@ -7,11 +8,11 @@ use node_test_rig::{
 };
 use parking_lot::RwLock;
 use sensitive_url::SensitiveUrl;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use std::{
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
 };
-use std::{sync::Arc, time::Duration};
 use types::{Epoch, EthSpec};
 
 const BOOTNODE_PORT: u16 = 42424;
@@ -129,11 +130,24 @@ impl<E: EthSpec> LocalNetwork<E> {
             .collect()
     }
 
-    pub fn update_known_addrs(&self) {
-        let listen_addrs = self.listen_addrs();
+    fn update_trust_peers(&self) -> Option<()> {
+        let trust_peers = self
+            .beacon_nodes
+            .read()
+            .iter()
+            .filter_map(|n| {
+                Some((
+                    n.client.peer_id()?,
+                    n.client.libp2p_listen_addresses()?[0].clone(),
+                ))
+            })
+            .collect::<HashMap<PeerId, Multiaddr>>();
+
         self.beacon_nodes.read().iter().for_each(|node| {
-            node.client.set_known_multiaddrs(listen_addrs.clone());
+            node.client.set_trust_peers(trust_peers.clone());
         });
+
+        Some(())
     }
 
     /// Adds a beacon node to the network, connecting to the 0'th beacon node via ENR.
@@ -160,7 +174,7 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.discv5_config.table_filter = |_| true;
-            beacon_config.network.libp2p_nodes = self.listen_addrs();
+            // beacon_config.network.libp2p_nodes = self.listen_addrs();
         }
         if let Some(el_config) = &mut beacon_config.execution_layer {
             let config = MockExecutionConfig {
@@ -191,9 +205,9 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config,
         )
         .await?;
-        self_1.beacon_nodes.write().push(beacon_node);
-        self.update_known_addrs();
 
+        self_1.beacon_nodes.write().push(beacon_node);
+        self_1.update_trust_peers();
         Ok(())
     }
 

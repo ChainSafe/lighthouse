@@ -959,8 +959,13 @@ impl<TSpec: EthSpec> NetworkBehaviour for Discovery<TSpec> {
     }
 
     // Handles the libp2p request to obtain multiaddrs for peer_id's in order to dial them.
-    fn addresses_of_peer(&mut self, _: &PeerId) -> Vec<Multiaddr> {
-        self.network_globals.known_multiaddrs()
+    fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr> {
+        let trust_peers = self.network_globals.trust_peers();
+        let Some(addr) = trust_peers.get(peer_id) else {
+            return Vec::new();
+        };
+
+        vec![addr.clone()]
 
         // if let Some(enr) = self.enr_of_peer(peer_id) {
         //     // ENR's may have multiple Multiaddrs. The multi-addr associated with the UDP
