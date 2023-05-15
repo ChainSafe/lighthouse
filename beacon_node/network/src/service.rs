@@ -289,9 +289,9 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 network_log,
                 "Loading peers into the routing table"; "peers" => enrs_to_load.len()
             );
-            for enr in enrs_to_load {
-                libp2p.add_enr(enr.clone());
-            }
+            // for enr in enrs_to_load {
+            //     libp2p.add_enr(enr.clone());
+            // }
         }
 
         // launch derived network services
@@ -607,28 +607,28 @@ impl<T: BeaconChainTypes> NetworkService<T> {
             } => {
                 self.upnp_mappings = (tcp_socket.map(|s| s.port()), udp_socket.map(|s| s.port()));
                 // If there is an external TCP port update, modify our local ENR.
-                if let Some(tcp_socket) = tcp_socket {
-                    if let Err(e) = self
-                        .libp2p
-                        .discovery_mut()
-                        .update_enr_tcp_port(tcp_socket.port())
-                    {
-                        warn!(self.log, "Failed to update ENR"; "error" => e);
-                    }
-                }
+                // if let Some(tcp_socket) = tcp_socket {
+                //     if let Err(e) = self
+                //         .libp2p
+                //         .discovery_mut()
+                //         .update_enr_tcp_port(tcp_socket.port())
+                //     {
+                //         warn!(self.log, "Failed to update ENR"; "error" => e);
+                //     }
+                // }
                 // if the discovery service is not auto-updating, update it with the
                 // UPnP mappings
-                if !self.discovery_auto_update {
-                    if let Some(udp_socket) = udp_socket {
-                        if let Err(e) = self
-                            .libp2p
-                            .discovery_mut()
-                            .update_enr_udp_socket(udp_socket)
-                        {
-                            warn!(self.log, "Failed to update ENR"; "error" => e);
-                        }
-                    }
-                }
+                // if !self.discovery_auto_update {
+                //     if let Some(udp_socket) = udp_socket {
+                //         if let Err(e) = self
+                //             .libp2p
+                //             .discovery_mut()
+                //             .update_enr_udp_socket(udp_socket)
+                //         {
+                //             warn!(self.log, "Failed to update ENR"; "error" => e);
+                //         }
+                //     }
+                // }
             }
             NetworkMessage::ValidationResult {
                 propagation_source,
@@ -666,12 +666,12 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 action,
                 source,
                 msg,
-            } => self.libp2p.report_peer(&peer_id, action, source, msg),
+            } => {} //self.libp2p.report_peer(&peer_id, action, source, msg),
             NetworkMessage::GoodbyePeer {
                 peer_id,
                 reason,
                 source,
-            } => self.libp2p.goodbye_peer(&peer_id, reason, source),
+            } => {} //self.libp2p.goodbye_peer(&peer_id, reason, source),
             NetworkMessage::SubscribeCoreTopics => {
                 if self.shutdown_after_sync {
                     if let Err(e) = shutdown_sender
@@ -730,7 +730,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                     for subnet_id in 0..<<T as BeaconChainTypes>::EthSpec as EthSpec>::SubnetBitfieldLength::to_u64() {
                         let subnet = Subnet::Attestation(SubnetId::new(subnet_id));
                         // Update the ENR bitfield
-                        self.libp2p.update_enr_subnet(subnet, true);
+                        // self.libp2p.update_enr_subnet(subnet, true);
                         for fork_digest in self.required_gossip_fork_digests() {
                             let topic = GossipTopic::new(subnet.into(), GossipEncoding::default(), fork_digest);
                             if self.libp2p.subscribe(topic.clone()) {
@@ -744,7 +744,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                     for subnet_id in 0..subnet_max {
                         let subnet = Subnet::SyncCommittee(SyncSubnetId::new(subnet_id));
                         // Update the ENR bitfield
-                        self.libp2p.update_enr_subnet(subnet, true);
+                        // self.libp2p.update_enr_subnet(subnet, true);
                         for fork_digest in self.required_gossip_fork_digests() {
                             let topic = GossipTopic::new(
                                 subnet.into(),
@@ -841,13 +841,13 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 }
             }
             SubnetServiceMessage::EnrAdd(subnet) => {
-                self.libp2p.update_enr_subnet(subnet, true);
+                // self.libp2p.update_enr_subnet(subnet, true);
             }
             SubnetServiceMessage::EnrRemove(subnet) => {
-                self.libp2p.update_enr_subnet(subnet, false);
+                // self.libp2p.update_enr_subnet(subnet, false);
             }
             SubnetServiceMessage::DiscoverPeers(subnets_to_discover) => {
-                self.libp2p.discover_subnet_peers(subnets_to_discover);
+                // self.libp2p.discover_subnet_peers(subnets_to_discover);
             }
         }
     }
@@ -869,13 +869,13 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 }
             }
             SubnetServiceMessage::EnrAdd(subnet) => {
-                self.libp2p.update_enr_subnet(subnet, true);
+                // self.libp2p.update_enr_subnet(subnet, true);
             }
             SubnetServiceMessage::EnrRemove(subnet) => {
-                self.libp2p.update_enr_subnet(subnet, false);
+                // self.libp2p.update_enr_subnet(subnet, false);
             }
             SubnetServiceMessage::DiscoverPeers(subnets_to_discover) => {
-                self.libp2p.discover_subnet_peers(subnets_to_discover);
+                // self.libp2p.discover_subnet_peers(subnets_to_discover);
             }
         }
     }
@@ -893,7 +893,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
             );
             fork_context.update_current_fork(*new_fork_name);
 
-            self.libp2p.update_fork_version(new_enr_fork_id);
+            // self.libp2p.update_fork_version(new_enr_fork_id);
             // Reinitialize the next_fork_update
             self.next_fork_update = Box::pin(next_fork_delay(&self.beacon_chain).into());
 
@@ -942,27 +942,27 @@ fn next_fork_subscriptions_delay<T: BeaconChainTypes>(
 impl<T: BeaconChainTypes> Drop for NetworkService<T> {
     fn drop(&mut self) {
         // network thread is terminating
-        let enrs = self.libp2p.enr_entries();
-        debug!(
-            self.log,
-            "Persisting DHT to store";
-            "Number of peers" => enrs.len(),
-        );
+        // let enrs = self.libp2p.enr_entries();
+        // debug!(
+        //     self.log,
+        //     "Persisting DHT to store";
+        //     "Number of peers" => enrs.len(),
+        // );
         if let Err(e) = clear_dht::<T::EthSpec, T::HotStore, T::ColdStore>(self.store.clone()) {
             error!(self.log, "Failed to clear old DHT entries"; "error" => ?e);
         }
-        // Still try to update new entries
-        match persist_dht::<T::EthSpec, T::HotStore, T::ColdStore>(self.store.clone(), enrs) {
-            Err(e) => error!(
-                self.log,
-                "Failed to persist DHT on drop";
-                "error" => ?e
-            ),
-            Ok(_) => info!(
-                self.log,
-                "Saved DHT state";
-            ),
-        }
+        // // Still try to update new entries
+        // match persist_dht::<T::EthSpec, T::HotStore, T::ColdStore>(self.store.clone(), enrs) {
+        //     Err(e) => error!(
+        //         self.log,
+        //         "Failed to persist DHT on drop";
+        //         "error" => ?e
+        //     ),
+        //     Ok(_) => info!(
+        //         self.log,
+        //         "Saved DHT state";
+        //     ),
+        // }
 
         // attempt to remove port mappings
         crate::nat::remove_mappings(self.upnp_mappings.0, self.upnp_mappings.1, &self.log);
