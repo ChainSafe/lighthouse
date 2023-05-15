@@ -1,5 +1,5 @@
 use super::sync::manager::RequestId as SyncId;
-use crate::persisted_dht::{clear_dht, load_dht, persist_dht};
+use crate::persisted_dht::{clear_dht, load_dht};
 use crate::router::{Router, RouterMessage};
 use crate::subnet_service::SyncCommitteeService;
 use crate::{error, metrics};
@@ -279,7 +279,7 @@ impl<T: BeaconChainTypes> NetworkService<T> {
         };
 
         // launch libp2p service
-        let (mut libp2p, network_globals) =
+        let (libp2p, network_globals) =
             Network::new(executor.clone(), service_context, &network_log).await?;
 
         // Repopulate the DHT with stored ENR's if discovery is not disabled.
@@ -662,15 +662,15 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                 self.libp2p.publish(messages);
             }
             NetworkMessage::ReportPeer {
-                peer_id,
-                action,
-                source,
-                msg,
+                peer_id: _,
+                action: _,
+                source: _,
+                msg: _,
             } => {} //self.libp2p.report_peer(&peer_id, action, source, msg),
             NetworkMessage::GoodbyePeer {
-                peer_id,
-                reason,
-                source,
+                peer_id: _,
+                reason: _,
+                source: _,
             } => {} //self.libp2p.goodbye_peer(&peer_id, reason, source),
             NetworkMessage::SubscribeCoreTopics => {
                 if self.shutdown_after_sync {
@@ -840,13 +840,13 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                     self.libp2p.unsubscribe(topic);
                 }
             }
-            SubnetServiceMessage::EnrAdd(subnet) => {
+            SubnetServiceMessage::EnrAdd(_subnet) => {
                 // self.libp2p.update_enr_subnet(subnet, true);
             }
-            SubnetServiceMessage::EnrRemove(subnet) => {
+            SubnetServiceMessage::EnrRemove(_subnet) => {
                 // self.libp2p.update_enr_subnet(subnet, false);
             }
-            SubnetServiceMessage::DiscoverPeers(subnets_to_discover) => {
+            SubnetServiceMessage::DiscoverPeers(_subnets_to_discover) => {
                 // self.libp2p.discover_subnet_peers(subnets_to_discover);
             }
         }
@@ -868,13 +868,13 @@ impl<T: BeaconChainTypes> NetworkService<T> {
                     self.libp2p.unsubscribe(topic);
                 }
             }
-            SubnetServiceMessage::EnrAdd(subnet) => {
+            SubnetServiceMessage::EnrAdd(_subnet) => {
                 // self.libp2p.update_enr_subnet(subnet, true);
             }
-            SubnetServiceMessage::EnrRemove(subnet) => {
+            SubnetServiceMessage::EnrRemove(_subnet) => {
                 // self.libp2p.update_enr_subnet(subnet, false);
             }
-            SubnetServiceMessage::DiscoverPeers(subnets_to_discover) => {
+            SubnetServiceMessage::DiscoverPeers(_subnets_to_discover) => {
                 // self.libp2p.discover_subnet_peers(subnets_to_discover);
             }
         }

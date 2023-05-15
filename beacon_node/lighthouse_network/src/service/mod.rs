@@ -1,7 +1,6 @@
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
 use crate::config::{gossipsub_config, NetworkLoad};
-use crate::discovery::{Discovery, FIND_NODE_QUERY_CLOSEST_PEERS};
 use crate::peer_manager::{MIN_OUTBOUND_ONLY_FACTOR, PEER_EXCESS_FACTOR, PRIORITY_PEER_EXCESS};
 use crate::rpc::*;
 use crate::service::behaviour::BehaviourEvent;
@@ -266,15 +265,6 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             config.outbound_rate_limiter_config.clone(),
             log.clone(),
         );
-
-        let discovery = {
-            // Build and start the discovery sub-behaviour
-            let mut discovery =
-                Discovery::new(&local_keypair, &config, network_globals.clone(), &log).await?;
-            // start searching for peers
-            discovery.discover_peers(FIND_NODE_QUERY_CLOSEST_PEERS);
-            discovery
-        };
 
         let identify = {
             let identify_config = if config.private {
@@ -924,8 +914,8 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 match handler_err {
                     HandlerErr::Inbound {
                         id: _,
-                        proto,
-                        error,
+                        proto: _,
+                        error: _,
                     } => {
                         // // Inform the peer manager of the error.
                         // // An inbound error here means we sent an error to the peer, or the stream
@@ -938,7 +928,11 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                         // );
                         None
                     }
-                    HandlerErr::Outbound { id, proto, error } => {
+                    HandlerErr::Outbound {
+                        id,
+                        proto: _,
+                        error: _,
+                    } => {
                         // // Inform the peer manager that a request we sent to the peer failed
                         // self.peer_manager_mut().handle_rpc_error(
                         //     &peer_id,
@@ -959,7 +953,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 let peer_request_id = (handler_id, id);
                 match request {
                     /* Behaviour managed protocols: Ping and Metadata */
-                    InboundRequest::Ping(ping) => {
+                    InboundRequest::Ping(_) => {
                         // // inform the peer manager and send the response
                         // self.peer_manager_mut().ping_request(&peer_id, ping.data);
                         // send a ping response
@@ -1044,11 +1038,11 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             Ok(RPCReceived::Response(id, resp)) => {
                 match resp {
                     /* Behaviour managed protocols */
-                    RPCResponse::Pong(ping) => {
+                    RPCResponse::Pong(_) => {
                         // self.peer_manager_mut().pong_response(&peer_id, ping.data);
                         None
                     }
-                    RPCResponse::MetaData(meta_data) => {
+                    RPCResponse::MetaData(_) => {
                         // self.peer_manager_mut()
                         //     .meta_data_response(&peer_id, meta_data);
                         None
@@ -1088,7 +1082,10 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         event: IdentifyEvent,
     ) -> Option<NetworkEvent<AppReqId, TSpec>> {
         match event {
-            IdentifyEvent::Received { peer_id, mut info } => {
+            IdentifyEvent::Received {
+                peer_id: _,
+                mut info,
+            } => {
                 if info.listen_addrs.len() > MAX_IDENTIFY_ADDRESSES {
                     debug!(
                         self.log,
