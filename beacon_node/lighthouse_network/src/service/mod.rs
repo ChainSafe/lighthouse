@@ -1494,7 +1494,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     local_addr,
                     send_back_addr,
                 } => {
-                    warn!(self.log, "Incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr);
+                    debug!(self.log, "Incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr);
                     None
                 }
                 SwarmEvent::IncomingConnectionError {
