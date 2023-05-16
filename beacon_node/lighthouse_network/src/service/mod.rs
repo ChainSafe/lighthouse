@@ -876,14 +876,14 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
     ) -> Option<NetworkEvent<AppReqId, TSpec>> {
         let peer_id = event.peer_id;
 
-        // if !self.peer_manager().is_connected(&peer_id) {
-        //     debug!(
-        //         self.log,
-        //         "Ignoring rpc message of disconnecting peer";
-        //         event
-        //     );
-        //     return None;
-        // }
+        if !self.swarm.is_connected(&peer_id) {
+            debug!(
+                self.log,
+                "Ignoring rpc message of disconnecting peer";
+                event
+            );
+            return None;
+        }
 
         let handler_id = event.conn_id;
         // The METADATA and PING RPC responses are handled within the behaviour and not propagated
@@ -1060,7 +1060,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         peers: Vec<(PeerId, Multiaddr)>,
     ) -> Option<NetworkEvent<AppReqId, TSpec>> {
         for (peer_id, multiaddr) in peers {
-            if self.swarm.is_connected(&peer_id) {
+            if self.swarm.is_connected(&peer_id) || self.swarm.is_dialing(&peer_id) {
                 continue;
             }
 
