@@ -1,3 +1,4 @@
+use crate::pm::PeerManager;
 use crate::rpc::{ReqId, RPC};
 use crate::types::SnappyTransform;
 
@@ -5,7 +6,6 @@ use libp2p::gossipsub::subscription_filter::{
     MaxCountSubscriptionFilter, WhitelistSubscriptionFilter,
 };
 use libp2p::gossipsub::Behaviour as BaseGossipsub;
-use libp2p::identify::Behaviour as Identify;
 use libp2p::relay;
 use libp2p::swarm::NetworkBehaviour;
 use types::EthSpec;
@@ -27,8 +27,8 @@ where
     pub eth2_rpc: RPC<RequestId<AppReqId>, TSpec>,
     /// Keep regular connection to peers and disconnect if absent.
     // NOTE: The id protocol is used for initial interop. This will be removed by mainnet.
-    /// Provides IP addresses and peer information.
-    pub identify: Identify,
     /// Circuit relay for nodes supporting Nym and TCP.
     pub relay: relay::Behaviour,
+
+    pub pm: PeerManager<TSpec>,
 }

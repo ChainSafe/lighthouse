@@ -144,7 +144,7 @@ impl<E: EthSpec> LocalNetwork<E> {
             .collect::<HashMap<PeerId, Multiaddr>>();
 
         self.beacon_nodes.read().iter().for_each(|node| {
-            node.client.set_trust_peers(trust_peers.clone());
+            node.client.set_trusted_peers(trust_peers.clone());
         });
 
         Some(())

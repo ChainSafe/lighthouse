@@ -31,7 +31,7 @@ pub struct NetworkGlobals<TSpec: EthSpec> {
     /// The current state of the backfill sync.
     pub backfill_state: RwLock<BackFillState>,
 
-    trust_peers: RwLock<HashMap<PeerId, Multiaddr>>,
+    trusted_peers: RwLock<HashMap<PeerId, Multiaddr>>,
 }
 
 impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
@@ -54,7 +54,7 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
             gossipsub_subscriptions: RwLock::new(HashSet::new()),
             sync_state: RwLock::new(SyncState::Stalled),
             backfill_state: RwLock::new(BackFillState::NotRequired),
-            trust_peers: RwLock::new(HashMap::new()),
+            trusted_peers: RwLock::new(HashMap::new()),
         }
     }
 
@@ -131,13 +131,16 @@ impl<TSpec: EthSpec> NetworkGlobals<TSpec> {
     }
 
     /// TESTING ONLY.
-    pub fn trust_peers(&self) -> HashMap<PeerId, Multiaddr> {
-        self.trust_peers.read().clone()
+    pub fn trusted_peers(&self) -> HashMap<PeerId, Multiaddr> {
+        self.trusted_peers.read().clone()
     }
 
     /// TESTING ONLY.
-    pub fn set_trust_peers(&self, peers: HashMap<PeerId, Multiaddr>) -> HashMap<PeerId, Multiaddr> {
-        std::mem::replace(&mut *self.trust_peers.write(), peers)
+    pub fn set_trusted_peers(
+        &self,
+        peers: HashMap<PeerId, Multiaddr>,
+    ) -> HashMap<PeerId, Multiaddr> {
+        std::mem::replace(&mut *self.trusted_peers.write(), peers)
     }
 
     /// TESTING ONLY. Build a dummy NetworkGlobals instance.

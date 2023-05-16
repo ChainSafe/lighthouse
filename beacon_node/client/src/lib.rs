@@ -67,13 +67,13 @@ impl<T: BeaconChainTypes> Client<T> {
         self.network_globals.as_ref().map(|n| n.listen_multiaddrs())
     }
 
-    pub fn set_trust_peers(
+    pub fn set_trusted_peers(
         &self,
         peers: HashMap<PeerId, Multiaddr>,
     ) -> Option<HashMap<PeerId, Multiaddr>> {
         self.network_globals
             .as_ref()
-            .map(|n| n.set_trust_peers(peers))
+            .map(|n| n.set_trusted_peers(peers))
     }
 
     pub fn peer_id(&self) -> Option<PeerId> {

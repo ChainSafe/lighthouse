@@ -2,6 +2,7 @@ use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
 use crate::config::{gossipsub_config, NetworkLoad};
 use crate::peer_manager::{MIN_OUTBOUND_ONLY_FACTOR, PEER_EXCESS_FACTOR, PRIORITY_PEER_EXCESS};
+use crate::pm::PeerManager;
 use crate::rpc::*;
 use crate::service::behaviour::BehaviourEvent;
 pub use crate::service::behaviour::Gossipsub;
@@ -22,7 +23,6 @@ use libp2p::gossipsub::PublishError;
 use libp2p::gossipsub::{
     Event as GossipsubEvent, IdentTopic as Topic, MessageAcceptance, MessageAuthenticity, MessageId,
 };
-use libp2p::identify::{Behaviour as Identify, Config as IdentifyConfig, Event as IdentifyEvent};
 use libp2p::multiaddr::{Multiaddr, Protocol as MProtocol};
 use libp2p::swarm::{ConnectionLimits, Swarm, SwarmBuilder, SwarmEvent};
 use libp2p::PeerId;
@@ -266,26 +266,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             log.clone(),
         );
 
-        let identify = {
-            let identify_config = if config.private {
-                IdentifyConfig::new(
-                    "".into(),
-                    local_keypair.public(), // Still send legitimate public key
-                )
-                .with_cache_size(0)
-            } else {
-                IdentifyConfig::new("eth2/1.0.0".into(), local_keypair.public())
-                    .with_agent_version(lighthouse_version::version_with_platform())
-                    .with_cache_size(0)
-            };
-            Identify::new(identify_config)
-        };
+        let pm = PeerManager::new(network_globals.clone());
 
         let behaviour = {
             Behaviour {
                 gossipsub,
                 eth2_rpc,
-                identify,
+                pm,
                 relay: relay::Behaviour::new(local_peer_id, Default::default()),
             }
         };
@@ -429,11 +416,6 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         &mut self.swarm.behaviour_mut().eth2_rpc
     }
 
-    /// Provides IP addresses and peer information.
-    pub fn identify_mut(&mut self) -> &mut Identify {
-        &mut self.swarm.behaviour_mut().identify
-    }
-
     /// The routing pub-sub mechanism for eth2.
     pub fn gossipsub(&self) -> &Gossipsub {
         &self.swarm.behaviour().gossipsub
@@ -443,10 +425,6 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         &self.swarm.behaviour().eth2_rpc
     }
 
-    /// Provides IP addresses and peer information.
-    pub fn identify(&self) -> &Identify {
-        &self.swarm.behaviour().identify
-    }
     /// Returns the local ENR of the node.
     pub fn local_enr(&self) -> Enr {
         self.network_globals.local_enr()
@@ -1076,31 +1054,21 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         }
     }
 
-    /// Handle an identify event.
-    fn inject_identify_event(
+    /// Handle an pm event.
+    fn inject_pm_event(
         &mut self,
-        event: IdentifyEvent,
+        peers: Vec<(PeerId, Multiaddr)>,
     ) -> Option<NetworkEvent<AppReqId, TSpec>> {
-        match event {
-            IdentifyEvent::Received {
-                peer_id: _,
-                mut info,
-            } => {
-                if info.listen_addrs.len() > MAX_IDENTIFY_ADDRESSES {
-                    debug!(
-                        self.log,
-                        "More than 10 addresses have been identified, truncating"
-                    );
-                    info.listen_addrs.truncate(MAX_IDENTIFY_ADDRESSES);
-                }
-
-                // // send peer info to the peer manager.
-                // self.peer_manager_mut().identify(&peer_id, &info);
+        for (peer_id, multiaddr) in peers {
+            if self.swarm.is_connected(&peer_id) {
+                continue;
             }
-            IdentifyEvent::Sent { .. } => {}
-            IdentifyEvent::Error { .. } => {}
-            IdentifyEvent::Pushed { .. } => {}
+
+            self.swarm.dial(multiaddr).unwrap_or_else(
+                |e| error!(self.log, "Could not dial address"; "error" => format!("{:?}", e)),
+            );
         }
+
         None
     }
 
@@ -1116,7 +1084,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     // Handle sub-behaviour events.
                     BehaviourEvent::Gossipsub(ge) => self.inject_gs_event(ge),
                     BehaviourEvent::Eth2Rpc(re) => self.inject_rpc_event(re),
-                    BehaviourEvent::Identify(ie) => self.inject_identify_event(ie),
+                    BehaviourEvent::Pm(pm) => self.inject_pm_event(pm),
                     BehaviourEvent::Relay(_) => todo!(),
                 },
                 SwarmEvent::ConnectionEstablished { .. } => None,

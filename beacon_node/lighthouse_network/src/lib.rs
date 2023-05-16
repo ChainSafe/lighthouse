@@ -16,6 +16,7 @@ pub mod metrics;
 pub mod peer_manager;
 pub mod rpc;
 pub mod types;
+pub mod pm;
 
 pub use config::{gossip_max_size, Libp2pTransport};
 pub use listen_addr::*;
