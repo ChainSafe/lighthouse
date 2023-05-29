@@ -13,7 +13,7 @@ use std::{
 };
 use types::EthSpec;
 
-pub struct PeerManager<TSpec: EthSpec> {
+pub struct Discv<TSpec: EthSpec> {
     /// A collection of network constants that can be read from other threads.
     pub network_globals: Arc<NetworkGlobals<TSpec>>,
 
@@ -22,7 +22,7 @@ pub struct PeerManager<TSpec: EthSpec> {
     dialed_peers: Vec<PeerId>,
 }
 
-impl<TSpec: EthSpec> PeerManager<TSpec> {
+impl<TSpec: EthSpec> Discv<TSpec> {
     pub fn new(network_globals: Arc<NetworkGlobals<TSpec>>) -> Self {
         Self {
             network_globals,
@@ -32,7 +32,7 @@ impl<TSpec: EthSpec> PeerManager<TSpec> {
     }
 }
 
-impl<TSpec: EthSpec> NetworkBehaviour for PeerManager<TSpec> {
+impl<TSpec: EthSpec> NetworkBehaviour for Discv<TSpec> {
     type ConnectionHandler = ConnectionHandler;
     type OutEvent = Vec<(PeerId, Multiaddr)>;
 
@@ -113,6 +113,15 @@ impl<TSpec: EthSpec> NetworkBehaviour for PeerManager<TSpec> {
             | FromSwarm::NewExternalAddr(_)
             | FromSwarm::ExpiredExternalAddr(_) => {}
         }
+    }
+
+    fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr> {
+        self.network_globals
+            .trusted_peers()
+            .get(peer_id)
+            .cloned()
+            .into_iter()
+            .collect()
     }
 
     fn on_connection_handler_event(

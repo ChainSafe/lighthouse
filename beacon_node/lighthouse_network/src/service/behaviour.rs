@@ -1,4 +1,5 @@
-use crate::pm::PeerManager;
+use crate::discv::Discv;
+use crate::peer_manager::PeerManager;
 use crate::rpc::{ReqId, RPC};
 use crate::types::SnappyTransform;
 
@@ -23,12 +24,15 @@ where
 {
     /// The routing pub-sub mechanism for eth2.
     pub gossipsub: Gossipsub,
+
     /// The Eth2 RPC specified in the wire-0 protocol.
     pub eth2_rpc: RPC<RequestId<AppReqId>, TSpec>,
-    /// Keep regular connection to peers and disconnect if absent.
-    // NOTE: The id protocol is used for initial interop. This will be removed by mainnet.
+
     /// Circuit relay for nodes supporting Nym and TCP.
     pub relay: relay::Behaviour,
 
-    pub pm: PeerManager<TSpec>,
+    pub discv: Discv<TSpec>,
+
+    /// The peer manager that keeps track of peer's reputation and status.
+    pub peer_manager: PeerManager<TSpec>,
 }

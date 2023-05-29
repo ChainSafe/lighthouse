@@ -180,6 +180,7 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         beacon_config.network.target_peers = node_count - 1;
         // beacon_config.network.libp2p_transport = leading.clone();
         beacon_config.network.enr_address = (Some(Ipv4Addr::LOCALHOST), None);
+        beacon_config.network.disable_discovery = true;
 
         // if !matches!(&leading, Libp2pTransport::Tcp) {
         // set up nym client

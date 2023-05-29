@@ -58,7 +58,7 @@ pub fn spawn_notifier<T: BeaconChainTypes>(
                     info!(
                         log,
                         "Waiting for genesis";
-                        "peers" => peer_count_pretty(network.connected_peers()),
+                        // "peers" => peer_count_pretty(network.connected_peers()),
                         "wait_time" => estimated_time_pretty(Some(next_slot.as_secs() as f64)),
                     );
                     eth1_logging(&beacon_chain, &log);
