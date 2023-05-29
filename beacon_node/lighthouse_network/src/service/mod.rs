@@ -1,3 +1,4 @@
+#![allow(unused)]
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
 use crate::config::{gossipsub_config, NetworkLoad};
@@ -289,7 +290,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 gossipsub,
                 eth2_rpc,
                 discv,
-                peer_manager,
+                // peer_manager,
                 relay: relay::Behaviour::new(local_peer_id, Default::default()),
             }
         };
@@ -438,10 +439,10 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         &mut self.swarm.behaviour_mut().eth2_rpc
     }
 
-    /// The peer manager that keeps track of peer's reputation and status.
-    pub fn peer_manager_mut(&mut self) -> &mut PeerManager<TSpec> {
-        &mut self.swarm.behaviour_mut().peer_manager
-    }
+    // /// The peer manager that keeps track of peer's reputation and status.
+    // pub fn peer_manager_mut(&mut self) -> &mut PeerManager<TSpec> {
+    //     &mut self.swarm.behaviour_mut().peer_manager
+    // }
     /// The routing pub-sub mechanism for eth2.
     pub fn gossipsub(&self) -> &Gossipsub {
         &self.swarm.behaviour().gossipsub
@@ -883,13 +884,13 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             }
             GossipsubEvent::GossipsubNotSupported { peer_id } => {
                 debug!(self.log, "Peer does not support gossipsub"; "peer_id" => %peer_id);
-                self.peer_manager_mut().report_peer(
-                    &peer_id,
-                    PeerAction::LowToleranceError,
-                    ReportSource::Gossipsub,
-                    Some(GoodbyeReason::Unknown),
-                    "does_not_support_gossipsub",
-                );
+                // self.peer_manager_mut().report_peer(
+                //     &peer_id,
+                //     PeerAction::LowToleranceError,
+                //     ReportSource::Gossipsub,
+                //     Some(GoodbyeReason::Unknown),
+                //     "does_not_support_gossipsub",
+                // );
             }
         }
         None
@@ -921,26 +922,26 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                         proto,
                         error,
                     } => {
-                        // Inform the peer manager of the error.
-                        // An inbound error here means we sent an error to the peer, or the stream
-                        // timed out.
-                        self.peer_manager_mut().handle_rpc_error(
-                            &peer_id,
-                            proto,
-                            &error,
-                            ConnectionDirection::Incoming,
-                        );
+                        // // Inform the peer manager of the error.
+                        // // An inbound error here means we sent an error to the peer, or the stream
+                        // // timed out.
+                        // self.peer_manager_mut().handle_rpc_error(
+                        //     &peer_id,
+                        //     proto,
+                        //     &error,
+                        //     ConnectionDirection::Incoming,
+                        // );
 
                         None
                     }
                     HandlerErr::Outbound { id, proto, error } => {
-                        // Inform the peer manager that a request we sent to the peer failed
-                        self.peer_manager_mut().handle_rpc_error(
-                            &peer_id,
-                            proto,
-                            &error,
-                            ConnectionDirection::Outgoing,
-                        );
+                        // // Inform the peer manager that a request we sent to the peer failed
+                        // self.peer_manager_mut().handle_rpc_error(
+                        //     &peer_id,
+                        //     proto,
+                        //     &error,
+                        //     ConnectionDirection::Outgoing,
+                        // );
 
                         // inform failures of requests comming outside the behaviour
                         if let RequestId::Application(id) = id {
@@ -956,8 +957,8 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 match request {
                     /* Behaviour managed protocols: Ping and Metadata */
                     InboundRequest::Ping(ping) => {
-                        // inform the peer manager and send the response
-                        self.peer_manager_mut().ping_request(&peer_id, ping.data);
+                        // // inform the peer manager and send the response
+                        // self.peer_manager_mut().ping_request(&peer_id, ping.data);
                         // send a ping response
                         self.pong(peer_request_id, peer_id);
                         None
@@ -983,8 +984,8 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     }
                     /* Protocols propagated to the Network */
                     InboundRequest::Status(msg) => {
-                        // inform the peer manager that we have received a status from a peer
-                        self.peer_manager_mut().peer_statusd(&peer_id);
+                        // // inform the peer manager that we have received a status from a peer
+                        // self.peer_manager_mut().peer_statusd(&peer_id);
                         // propagate the STATUS message upwards
                         let event =
                             self.build_request(peer_request_id, peer_id, Request::Status(msg));
@@ -998,14 +999,14 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                         } = req;
                         // Still disconnect the peer if the request is naughty.
                         if step == 0 {
-                            self.peer_manager_mut().handle_rpc_error(
-                                &peer_id,
-                                Protocol::BlocksByRange,
-                                &RPCError::InvalidData(
-                                    "Blocks by range with 0 step parameter".into(),
-                                ),
-                                ConnectionDirection::Incoming,
-                            );
+                            // self.peer_manager_mut().handle_rpc_error(
+                            //     &peer_id,
+                            //     Protocol::BlocksByRange,
+                            //     &RPCError::InvalidData(
+                            //         "Blocks by range with 0 step parameter".into(),
+                            //     ),
+                            //     ConnectionDirection::Incoming,
+                            // );
                             return None;
                         }
                         // return just one block in case the step parameter is used. https://github.com/ethereum/consensus-specs/pull/2856
@@ -1041,18 +1042,18 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 match resp {
                     /* Behaviour managed protocols */
                     RPCResponse::Pong(ping) => {
-                        self.peer_manager_mut().pong_response(&peer_id, ping.data);
+                        // self.peer_manager_mut().pong_response(&peer_id, ping.data);
                         None
                     }
                     RPCResponse::MetaData(meta_data) => {
-                        self.peer_manager_mut()
-                            .meta_data_response(&peer_id, meta_data);
+                        // self.peer_manager_mut()
+                        //     .meta_data_response(&peer_id, meta_data);
                         None
                     }
                     /* Network propagated protocols */
                     RPCResponse::Status(msg) => {
-                        // inform the peer manager that we have received a status from a peer
-                        self.peer_manager_mut().peer_statusd(&peer_id);
+                        // // inform the peer manager that we have received a status from a peer
+                        // self.peer_manager_mut().peer_statusd(&peer_id);
                         // propagate the STATUS message upwards
                         self.build_response(id, peer_id, Response::Status(msg))
                     }
@@ -1083,94 +1084,94 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         &mut self,
         peers: Vec<(PeerId, Multiaddr)>,
     ) -> Option<NetworkEvent<AppReqId, TSpec>> {
-        let peer_ids = peers
-            .iter()
-            .map(|(peer_id, _)| (peer_id.clone(), None))
-            .collect();
+        // let peer_ids = peers
+        //     .iter()
+        //     .map(|(peer_id, _)| (peer_id.clone(), None))
+        //     .collect();
 
-        let to_dial_peers = self.peer_manager_mut().peers_discovered(peer_ids);
-
-        for peer_id in to_dial_peers {
-            debug!(self.log, "Dialing discovered peer"; "peer_id" => %peer_id);
-            self.peer_manager_mut().dial_peer(&peer_id, None);
-        }
-
-        // for (peer_id, multiaddr) in peers {
-        //     if self.swarm.is_connected(&peer_id)
-        //         || self.swarm.is_dialing(&peer_id)
-        //         || self.peers.contains(&peer_id)
-        //     {
-        //         continue;
-        //     }
+        // let to_dial_peers = self.peer_manager_mut().peers_discovered(peer_ids);
         //
-        //     self.peers.push(peer_id.clone());
-        //     self.swarm.dial(multiaddr).unwrap_or_else(
-        //         |e| error!(self.log, "Could not dial address"; "error" => format!("{:?}", e)),
-        //     );
+        // for peer_id in to_dial_peers {
+        //     debug!(self.log, "Dialing discovered peer"; "peer_id" => %peer_id);
+        //     self.peer_manager_mut().dial_peer(&peer_id, None);
         // }
+
+        for (peer_id, multiaddr) in peers {
+            if self.swarm.is_connected(&peer_id)
+                || self.swarm.is_dialing(&peer_id)
+                || self.peers.contains(&peer_id)
+            {
+                continue;
+            }
+
+            self.peers.push(peer_id.clone());
+            self.swarm.dial(multiaddr).unwrap_or_else(
+                |e| error!(self.log, "Could not dial address"; "error" => format!("{:?}", e)),
+            );
+        }
 
         None
     }
 
-    /// Handle a peer manager event.
-    fn inject_pm_event(
-        &mut self,
-        event: PeerManagerEvent,
-    ) -> Option<NetworkEvent<AppReqId, TSpec>> {
-        match event {
-            PeerManagerEvent::PeerConnectedIncoming(peer_id) => {
-                Some(NetworkEvent::PeerConnectedIncoming(peer_id))
-            }
-            PeerManagerEvent::PeerConnectedOutgoing(peer_id) => {
-                Some(NetworkEvent::PeerConnectedOutgoing(peer_id))
-            }
-            PeerManagerEvent::PeerDisconnected(peer_id) => {
-                Some(NetworkEvent::PeerDisconnected(peer_id))
-            }
-            PeerManagerEvent::Banned(peer_id, _) => {
-                self.swarm.ban_peer_id(peer_id);
-                // self.discovery_mut().ban_peer(&peer_id, associated_ips);
-                Some(NetworkEvent::PeerBanned(peer_id))
-            }
-            PeerManagerEvent::UnBanned(peer_id, _) => {
-                self.swarm.unban_peer_id(peer_id);
-                // self.discovery_mut().unban_peer(&peer_id, associated_ips);
-                Some(NetworkEvent::PeerUnbanned(peer_id))
-            }
-            PeerManagerEvent::Status(peer_id) => {
-                // it's time to status. We don't keep a beacon chain reference here, so we inform
-                // the network to send a status to this peer
-                Some(NetworkEvent::StatusPeer(peer_id))
-            }
-            PeerManagerEvent::DiscoverPeers(_) => {
-                // Peer manager has requested a discovery query for more peers.
-                // self.discovery_mut().discover_peers(peers_to_find);
-                None
-            }
-            PeerManagerEvent::DiscoverSubnetPeers(_) => {
-                // Peer manager has requested a subnet discovery query for more peers.
-                // self.discover_subnet_peers(subnets_to_discover);
-                None
-            }
-            PeerManagerEvent::Ping(peer_id) => {
-                // send a ping request to this peer
-                self.ping(peer_id);
-                None
-            }
-            PeerManagerEvent::MetaData(peer_id) => {
-                self.send_meta_data_request(peer_id);
-                None
-            }
-            PeerManagerEvent::DisconnectPeer(peer_id, reason) => {
-                debug!(self.log, "Peer Manager disconnecting peer";
-                       "peer_id" => %peer_id, "reason" => %reason);
-                // send one goodbye
-                self.eth2_rpc_mut()
-                    .shutdown(peer_id, RequestId::Internal, reason);
-                None
-            }
-        }
-    }
+    // /// Handle a peer manager event.
+    // fn inject_pm_event(
+    //     &mut self,
+    //     event: PeerManagerEvent,
+    // ) -> Option<NetworkEvent<AppReqId, TSpec>> {
+    //     match event {
+    //         PeerManagerEvent::PeerConnectedIncoming(peer_id) => {
+    //             Some(NetworkEvent::PeerConnectedIncoming(peer_id))
+    //         }
+    //         PeerManagerEvent::PeerConnectedOutgoing(peer_id) => {
+    //             Some(NetworkEvent::PeerConnectedOutgoing(peer_id))
+    //         }
+    //         PeerManagerEvent::PeerDisconnected(peer_id) => {
+    //             Some(NetworkEvent::PeerDisconnected(peer_id))
+    //         }
+    //         PeerManagerEvent::Banned(peer_id, _) => {
+    //             self.swarm.ban_peer_id(peer_id);
+    //             // self.discovery_mut().ban_peer(&peer_id, associated_ips);
+    //             Some(NetworkEvent::PeerBanned(peer_id))
+    //         }
+    //         PeerManagerEvent::UnBanned(peer_id, _) => {
+    //             self.swarm.unban_peer_id(peer_id);
+    //             // self.discovery_mut().unban_peer(&peer_id, associated_ips);
+    //             Some(NetworkEvent::PeerUnbanned(peer_id))
+    //         }
+    //         PeerManagerEvent::Status(peer_id) => {
+    //             // it's time to status. We don't keep a beacon chain reference here, so we inform
+    //             // the network to send a status to this peer
+    //             Some(NetworkEvent::StatusPeer(peer_id))
+    //         }
+    //         PeerManagerEvent::DiscoverPeers(_) => {
+    //             // Peer manager has requested a discovery query for more peers.
+    //             // self.discovery_mut().discover_peers(peers_to_find);
+    //             None
+    //         }
+    //         PeerManagerEvent::DiscoverSubnetPeers(_) => {
+    //             // Peer manager has requested a subnet discovery query for more peers.
+    //             // self.discover_subnet_peers(subnets_to_discover);
+    //             None
+    //         }
+    //         PeerManagerEvent::Ping(peer_id) => {
+    //             // send a ping request to this peer
+    //             self.ping(peer_id);
+    //             None
+    //         }
+    //         PeerManagerEvent::MetaData(peer_id) => {
+    //             self.send_meta_data_request(peer_id);
+    //             None
+    //         }
+    //         PeerManagerEvent::DisconnectPeer(peer_id, reason) => {
+    //             debug!(self.log, "Peer Manager disconnecting peer";
+    //                    "peer_id" => %peer_id, "reason" => %reason);
+    //             // send one goodbye
+    //             self.eth2_rpc_mut()
+    //                 .shutdown(peer_id, RequestId::Internal, reason);
+    //             None
+    //         }
+    //     }
+    // }
 
     /* Networking polling */
 
@@ -1185,7 +1186,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     BehaviourEvent::Gossipsub(ge) => self.inject_gs_event(ge),
                     BehaviourEvent::Eth2Rpc(re) => self.inject_rpc_event(re),
                     BehaviourEvent::Discv(discv) => self.inject_discv_event(discv),
-                    BehaviourEvent::PeerManager(pm) => self.inject_pm_event(pm),
+                    // BehaviourEvent::PeerManager(pm) => self.inject_pm_event(pm),
                     BehaviourEvent::Relay(_) => todo!(),
                 },
                 SwarmEvent::ConnectionEstablished { peer_id, .. } => {
@@ -1195,10 +1196,10 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                         self.swarm.connected_peers().collect::<Vec<_>>().len()
                     );
 
-                    // self.swarm
-                    //     .behaviour_mut()
-                    //     .gossipsub
-                    //     .add_explicit_peer(&peer_id);
+                    self.swarm
+                        .behaviour_mut()
+                        .gossipsub
+                        .add_explicit_peer(&peer_id);
                     None
                 }
                 SwarmEvent::ConnectionClosed { peer_id, .. } => {
@@ -1273,11 +1274,11 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             }
         }
 
-        // perform gossipsub score updates when necessary
-        while self.update_gossipsub_scores.poll_tick(cx).is_ready() {
-            let this = self.swarm.behaviour_mut();
-            this.peer_manager.update_gossipsub_scores(&this.gossipsub);
-        }
+        // // perform gossipsub score updates when necessary
+        // while self.update_gossipsub_scores.poll_tick(cx).is_ready() {
+        //     let this = self.swarm.behaviour_mut();
+        //     this.peer_manager.update_gossipsub_scores(&this.gossipsub);
+        // }
 
         // poll the gossipsub cache to clear expired messages
         while let Poll::Ready(Some(result)) = self.gossip_cache.poll_next_unpin(cx) {

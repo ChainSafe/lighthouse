@@ -32,7 +32,6 @@ where
     pub relay: relay::Behaviour,
 
     pub discv: Discv<TSpec>,
-
-    /// The peer manager that keeps track of peer's reputation and status.
-    pub peer_manager: PeerManager<TSpec>,
+    // /// The peer manager that keeps track of peer's reputation and status.
+    // pub peer_manager: PeerManager<TSpec>,
 }
