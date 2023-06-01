@@ -9,7 +9,6 @@ use crate::peer_manager::{
     ConnectionDirection, PeerManager, PeerManagerEvent,
 };
 use crate::peer_manager::{MIN_OUTBOUND_ONLY_FACTOR, PEER_EXCESS_FACTOR, PRIORITY_PEER_EXCESS};
-use crate::rpc::*;
 use crate::service::behaviour::BehaviourEvent;
 pub use crate::service::behaviour::Gossipsub;
 use crate::types::{
@@ -18,6 +17,7 @@ use crate::types::{
 };
 use crate::EnrExt;
 use crate::Eth2Enr;
+use crate::{build_tcp_transport, rpc::*};
 use crate::{error, metrics, Enr, NetworkGlobals, PubsubMessage, TopicHash};
 use api_types::{PeerRequestId, Request, RequestId, Response};
 use futures::stream::StreamExt;
@@ -333,6 +333,12 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             let (transport, address) = build_nym_transport(local_keypair.clone(), uri)
                 .await
                 .map_err(|e| format!("Failed to build transport: {:?}", e))?;
+            // let transport = build_tcp_transport(local_keypair.clone())
+            //     .await
+            //     .map_err(|e| format!("Failed to build transport: {:?}", e))?;
+            // let address = format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
+            //     .parse()
+            //     .unwrap();
 
             let (transport, bandwidth) = transport.with_bandwidth_logging();
 

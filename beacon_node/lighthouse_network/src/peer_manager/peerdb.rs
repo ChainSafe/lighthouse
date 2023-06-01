@@ -475,11 +475,12 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
                     // The peer needs to be disconnected
 
                     // Update the state
-                    self.update_connection_state(
-                        &peer_id,
-                        NewConnectionState::Disconnecting { to_ban: false },
-                    );
-                    ScoreUpdateResult::Disconnect
+                    // self.update_connection_state(
+                    //     &peer_id,
+                    //     NewConnectionState::Disconnecting { to_ban: false },
+                    // );
+                    // ScoreUpdateResult::Disconnect
+                    ScoreUpdateResult::NoAction
                 }
                 ScoreTransitionResult::NoAction => ScoreUpdateResult::NoAction,
                 ScoreTransitionResult::Unbanned => {
@@ -516,70 +517,71 @@ impl<TSpec: EthSpec> PeerDB<TSpec> {
     #[must_use = "Banned and disconnected peers need to be handled in libp2p"]
     pub(super) fn report_peer(
         &mut self,
-        peer_id: &PeerId,
-        action: PeerAction,
-        source: ReportSource,
+        _peer_id: &PeerId,
+        _action: PeerAction,
+        _source: ReportSource,
         msg: &'static str,
     ) -> ScoreUpdateResult {
         metrics::inc_counter_vec(&metrics::REPORT_PEER_MSGS, &[msg]);
+        ScoreUpdateResult::NoAction
 
-        match self.peers.get_mut(peer_id) {
-            Some(info) => {
-                let previous_state = info.score_state();
-                info.apply_peer_action_to_score(action);
-                metrics::inc_counter_vec(
-                    &metrics::PEER_ACTION_EVENTS_PER_CLIENT,
-                    &[info.client().kind.as_ref(), action.as_ref(), source.into()],
-                );
-                let result =
-                    Self::handle_score_transition(previous_state, peer_id, info, &self.log);
-                if previous_state == info.score_state() {
-                    debug!(
-                        self.log,
-                        "Peer score adjusted";
-                        "msg" => %msg,
-                        "peer_id" => %peer_id,
-                        "score" => %info.score()
-                    );
-                }
-                match result {
-                    ScoreTransitionResult::Banned => {
-                        // The peer was banned as a result of this action.
-                        self.update_connection_state(peer_id, NewConnectionState::Banned)
-                            .into()
-                    }
-                    ScoreTransitionResult::Disconnected => {
-                        // The peer needs to be disconnected
-
-                        // Update the state
-                        self.update_connection_state(
-                            peer_id,
-                            NewConnectionState::Disconnecting { to_ban: false },
-                        );
-                        ScoreUpdateResult::Disconnect
-                    }
-                    ScoreTransitionResult::NoAction => ScoreUpdateResult::NoAction,
-                    ScoreTransitionResult::Unbanned => {
-                        error!(
-                            self.log,
-                            "Report peer action lead to an unbanning";
-                            "msg" => %msg,
-                            "peer_id" => %peer_id
-                        );
-                        ScoreUpdateResult::NoAction
-                    }
-                }
-            }
-            None => {
-                debug!(
-                    self.log,
-                    "Reporting a peer that doesn't exist";
-                    "msg" => %msg,
-                    "peer_id" =>%peer_id
-                );
-                ScoreUpdateResult::NoAction
-            }
-        }
+        // match self.peers.get_mut(peer_id) {
+        //     Some(info) => {
+        //         let previous_state = info.score_state();
+        //         info.apply_peer_action_to_score(action);
+        //         metrics::inc_counter_vec(
+        //             &metrics::PEER_ACTION_EVENTS_PER_CLIENT,
+        //             &[info.client().kind.as_ref(), action.as_ref(), source.into()],
+        //         );
+        //         let result =
+        //             Self::handle_score_transition(previous_state, peer_id, info, &self.log);
+        //         if previous_state == info.score_state() {
+        //             debug!(
+        //                 self.log,
+        //                 "Peer score adjusted";
+        //                 "msg" => %msg,
+        //                 "peer_id" => %peer_id,
+        //                 "score" => %info.score()
+        //             );
+        //         }
+        //         match result {
+        //             ScoreTransitionResult::Banned => {
+        //                 // The peer was banned as a result of this action.
+        //                 self.update_connection_state(peer_id, NewConnectionState::Banned)
+        //                     .into()
+        //             }
+        //             ScoreTransitionResult::Disconnected => {
+        //                 // The peer needs to be disconnected
+        //
+        //                 // Update the state
+        //                 self.update_connection_state(
+        //                     peer_id,
+        //                     NewConnectionState::Disconnecting { to_ban: false },
+        //                 );
+        //                 ScoreUpdateResult::Disconnect
+        //             }
+        //             ScoreTransitionResult::NoAction => ScoreUpdateResult::NoAction,
+        //             ScoreTransitionResult::Unbanned => {
+        //                 error!(
+        //                     self.log,
+        //                     "Report peer action lead to an unbanning";
+        //                     "msg" => %msg,
+        //                     "peer_id" => %peer_id
+        //                 );
+        //                 ScoreUpdateResult::NoAction
+        //             }
+        //         }
+        //     }
+        //     None => {
+        //         debug!(
+        //             self.log,
+        //             "Reporting a peer that doesn't exist";
+        //             "msg" => %msg,
+        //             "peer_id" =>%peer_id
+        //         );
+        //         ScoreUpdateResult::NoAction
+        //     }
+        // }
     }
 
     /// Update min ttl of a peer.
