@@ -22,6 +22,7 @@ pub const EXECUTION_PORT: u16 = 4000;
 
 pub const TERMINAL_DIFFICULTY: u64 = 6400;
 pub const TERMINAL_BLOCK: u64 = 64;
+pub const VC_METRICS_BASE: u16 = 52525;
 
 /// Helper struct to reduce `Arc` usage.
 pub struct Inner<E: EthSpec> {
@@ -235,6 +236,10 @@ impl<E: EthSpec> LocalNetwork<E> {
                 .expect("Must have http started")
         };
 
+        validator_config.http_metrics.enabled = true;
+        validator_config.http_metrics.listen_port = VC_METRICS_BASE + beacon_node as u16;
+        validator_config.http_metrics.allocator_metrics_enabled = true;
+
         let beacon_node = SensitiveUrl::parse(
             format!("http://{}:{}", socket_addr.ip(), socket_addr.port()).as_str(),
         )
@@ -246,6 +251,7 @@ impl<E: EthSpec> LocalNetwork<E> {
         // };
 
         validator_config.beacon_nodes = vec![beacon_node];
+
         let validator_client = LocalValidatorClient::production_with_insecure_keypairs(
             context,
             validator_config,
@@ -289,7 +295,6 @@ impl<E: EthSpec> LocalNetwork<E> {
 
     pub async fn duration_to_genesis(&self) -> Duration {
         let nodes = self.remote_nodes().expect("Failed to get remote nodes");
-        // println!("remote nodes: {:?}", nodes);
         let bootnode = nodes.first().expect("Should contain bootnode");
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         let genesis_time = Duration::from_secs(
