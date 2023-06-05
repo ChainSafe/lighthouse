@@ -665,6 +665,9 @@ impl<T: BeaconChainTypes> Worker<T> {
         duplicate_cache: DuplicateCache,
         seen_duration: Duration,
     ) {
+
+        metrics::inc_counter_vec(&metrics::BEACON_BLOCK_RECEIVED, &[&block.slot().to_string()]);
+
         if let Some(gossip_verified_block) = self
             .process_gossip_unverified_block(
                 message_id,
