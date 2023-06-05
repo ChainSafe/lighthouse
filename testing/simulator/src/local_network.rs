@@ -23,6 +23,7 @@ pub const EXECUTION_PORT: u16 = 4000;
 pub const TERMINAL_DIFFICULTY: u64 = 6400;
 pub const TERMINAL_BLOCK: u64 = 64;
 pub const VC_METRICS_BASE: u16 = 52525;
+pub const BN_METRICS_BASE: u16 = 62626;
 
 /// Helper struct to reduce `Arc` usage.
 pub struct Inner<E: EthSpec> {
@@ -69,6 +70,10 @@ impl<E: EthSpec> LocalNetwork<E> {
         beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT);
         beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT);
         beacon_config.network.discv5_config.table_filter = |_| true;
+        beacon_config.http_metrics.enabled = true;
+        beacon_config.http_metrics.listen_port = BN_METRICS_BASE;
+        beacon_config.http_metrics.allocator_metrics_enabled = true;
+        beacon_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
 
         let execution_node = if let Some(el_config) = &mut beacon_config.execution_layer {
             let mock_execution_config = MockExecutionConfig {
@@ -175,7 +180,10 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.discv5_config.table_filter = |_| true;
-            // beacon_config.network.libp2p_nodes = self.listen_addrs();
+            beacon_config.http_metrics.enabled = true;
+            beacon_config.http_metrics.listen_port = BN_METRICS_BASE + count;
+            beacon_config.http_metrics.allocator_metrics_enabled = true;
+            beacon_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
         }
         if let Some(el_config) = &mut beacon_config.execution_layer {
             let config = MockExecutionConfig {
@@ -239,6 +247,7 @@ impl<E: EthSpec> LocalNetwork<E> {
         validator_config.http_metrics.enabled = true;
         validator_config.http_metrics.listen_port = VC_METRICS_BASE + beacon_node as u16;
         validator_config.http_metrics.allocator_metrics_enabled = true;
+        validator_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
 
         let beacon_node = SensitiveUrl::parse(
             format!("http://{}:{}", socket_addr.ip(), socket_addr.port()).as_str(),
