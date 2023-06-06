@@ -70,17 +70,15 @@ pub async fn build_tcp_transport(local_private_key: Keypair) -> std::io::Result<
 pub async fn build_nym_transport(
     local_private_key: Keypair,
     nym_client_uri: String,
-) -> std::io::Result<(BoxedTransport, Multiaddr)> {
+    address: &mut Multiaddr,
+) -> std::io::Result<BoxedTransport> {
     let nym = NymTransport::new(&nym_client_uri, local_private_key.clone())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let listen_addr = nym.listen_addr.clone();
+    *address = nym.listen_addr.clone();
 
-    Ok((
-        nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed(),
-        listen_addr,
-    ))
+    Ok(nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed())
 }
 
 // TODO: Circuit Relay
@@ -89,14 +87,15 @@ pub async fn build_nym_transport(
 pub async fn build_transport(
     local_private_key: Keypair,
     nym_client_uri: String,
+    address: &mut Multiaddr,
 ) -> std::io::Result<BoxedTransport> {
     let (tcp, nym) = futures::join!(
         build_tcp_transport(local_private_key.clone()),
-        build_nym_transport(local_private_key, nym_client_uri)
+        build_nym_transport(local_private_key, nym_client_uri, address)
     );
 
     Ok(tcp?
-        .or_transport(nym?.0)
+        .or_transport(nym?)
         .map(|either_output, _| match either_output {
             Either::Left((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),
             Either::Right((peer_id, muxer)) => (peer_id, StreamMuxerBox::new(muxer)),

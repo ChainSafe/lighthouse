@@ -29,6 +29,7 @@ const SUGGESTED_FEE_RECIPIENT: [u8; 20] =
 
 pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
     let node_count = value_t!(matches, "nodes", usize).expect("missing nodes default");
+    let transport = value_t!(matches, "transport", Libp2pTransport).expect("missing transport");
     // let leading = value_t!(matches, "leading-node", Libp2pTransport).expect("missing leading_node");
     // let nym_node_count = value_t!(matches, "nym-nodes", usize).expect("missing nym-nodes default");
     // let tcp_node_count = value_t!(matches, "tcp-nodes", usize).expect("missing tcp-nodes default");
@@ -124,13 +125,15 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
             //     count += 1;
             // }
 
-            println!("Setting up {} nym clients...", node_count);
-            future::join_all((0..node_count).map(|_| NymClient::start())).await
+            if matches!(transport, Libp2pTransport::Tcp) {
+                vec![]
+            } else {
+                println!("Setting up {} nym clients...", node_count);
+                future::join_all((0..node_count).map(|_| NymClient::start())).await
+            }
         };
 
         let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
-        // let nym_client = NymClient::start().await;
-        // let nym_port = nym_client.port;
 
         /*
          * Deploy the deposit contract, spawn tasks to keep creating new blocks and deposit
@@ -165,6 +168,7 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
 
         let mut beacon_config = testing_client_config();
 
+        beacon_config.network.libp2p_transport = transport.clone();
         beacon_config.genesis = ClientGenesis::DepositContract;
         beacon_config.eth1.endpoint = Eth1Endpoint::NoAuth(eth1_endpoint);
         beacon_config.eth1.deposit_contract_address = deposit_contract_address;
@@ -183,15 +187,13 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         // beacon_config.network.disable_discovery = true;
         beacon_config.network.target_peers = node_count - 1;
 
-        // if !matches!(&leading, Libp2pTransport::Tcp) {
-        // set up nym client
-        {
+        if !matches!(&transport, Libp2pTransport::Tcp) {
+            // set up nym client
             let port = nym_ports
                 .pop()
                 .unwrap_or_else(|| unreachable!("checked above"));
             beacon_config.network.nym_client_address.tcp_port = port;
         }
-        // }
 
         if post_merge_sim {
             let el_config = execution_layer::Config {
@@ -218,12 +220,10 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
             let mut config = beacon_config.clone();
             // TODO: unreachable! in else block
             if let Some(port) = nym_ports.pop() {
-                config.network.libp2p_transport = Libp2pTransport::Nym;
                 config.network.nym_client_address.tcp_port = port;
-                network.add_beacon_node(config.clone()).await?;
-            } else {
-                unreachable!("checked above");
             }
+
+            network.add_beacon_node(config.clone()).await?;
         }
 
         assert_eq!(network.listen_addrs().len(), node_count);

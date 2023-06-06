@@ -15,10 +15,10 @@ use crate::types::{
     fork_core_topics, subnet_from_topic_hash, GossipEncoding, GossipKind, GossipTopic,
     SnappyTransform, Subnet, SubnetDiscovery,
 };
-use crate::EnrExt;
-use crate::Eth2Enr;
 use crate::{build_tcp_transport, rpc::*};
+use crate::{build_transport, Eth2Enr};
 use crate::{error, metrics, Enr, NetworkGlobals, PubsubMessage, TopicHash};
+use crate::{EnrExt, Libp2pTransport};
 use api_types::{PeerRequestId, Request, RequestId, Response};
 use futures::stream::StreamExt;
 use gossipsub_scoring_parameters::{lighthouse_gossip_thresholds, PeerScoreSettings};
@@ -114,8 +114,7 @@ pub enum NetworkEvent<AppReqId: ReqId, TSpec: EthSpec> {
 /// This core behaviour is managed by `Behaviour` which adds peer management to all core
 /// behaviours.
 pub struct Network<AppReqId: ReqId, TSpec: EthSpec> {
-    /// Nym address.
-    pub address: Multiaddr,
+    address: Option<Multiaddr>,
     swarm: libp2p::swarm::Swarm<Behaviour<AppReqId, TSpec>>,
     /* Auxiliary Fields */
     /// A collections of variables accessible outside the network service.
@@ -318,29 +317,33 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             }
         };
 
-        let (swarm, bandwidth, address) = {
-            let nym_addr = config.nym_client_address.clone();
-            let uri = format!("ws://{}:{}", nym_addr.addr, nym_addr.tcp_port);
-            info!(log, "Connecting to nym client"; "address" => &uri);
-
-            // TODO: Circuit relay
+        let mut address = None;
+        let (swarm, bandwidth) = {
             // Set up the transport - tcp/ws with noise and mplex
-            // let (transport, bandwidth) = match config.libp2p_transport {
-            //     Libp2pTransport::Nym => build_nym_transport(local_keypair.clone(), uri).await,
-            //     Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
-            //     Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone(), uri).await,
-            // }
-            let (transport, address) = build_nym_transport(local_keypair.clone(), uri)
-                .await
-                .map_err(|e| format!("Failed to build transport: {:?}", e))?;
-            // let transport = build_tcp_transport(local_keypair.clone())
-            //     .await
-            //     .map_err(|e| format!("Failed to build transport: {:?}", e))?;
-            // let address = format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
-            //     .parse()
-            //     .unwrap();
+            let (transport, bandwidth) = match config.libp2p_transport {
+                Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
+                _ => {
+                    let nym_addr = config.nym_client_address.clone();
+                    let uri = format!("ws://{}:{}", nym_addr.addr, nym_addr.tcp_port);
+                    info!(log, "Connecting to nym client"; "address" => &uri);
 
-            let (transport, bandwidth) = transport.with_bandwidth_logging();
+                    let mut self_addr = Multiaddr::empty();
+                    let t = match config.libp2p_transport {
+                        Libp2pTransport::Nym => {
+                            build_nym_transport(local_keypair.clone(), uri, &mut self_addr).await
+                        }
+                        Libp2pTransport::NymEitherTcp => {
+                            build_transport(local_keypair.clone(), uri, &mut self_addr).await
+                        }
+                        _ => unreachable!("checked before"),
+                    };
+
+                    address = Some(self_addr);
+                    t
+                }
+            }
+            .map_err(|e| format!("Failed to build transport: {:?}", e))?
+            .with_bandwidth_logging();
 
             // use the executor for libp2p
             struct Executor(task_executor::TaskExecutor);
@@ -380,7 +383,6 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 .connection_limits(limits)
                 .build(),
                 bandwidth,
-                address,
             )
         };
 
@@ -416,28 +418,14 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         info!(self.log, "Libp2p Starting"; "peer_id" => %enr.peer_id(), "bandwidth_config" => format!("{}-{}", config.network_load, NetworkLoad::from(config.network_load).name));
         debug!(self.log, "Attempting to open listening ports"; config.listen_addrs(), "discovery_enabled" => !config.disable_discovery);
 
-        // // listen on tcp addresses
-        // for listen_multiaddr in config.listen_addrs().tcp_addresses() {
-        //     match self.swarm.listen_on(listen_multiaddr.clone()) {
-        //         Ok(_) => {
-        //             let mut log_address = listen_multiaddr.clone();
-        //             log_address.push(MProtocol::P2p(enr.peer_id().into()));
-        //             info!(self.log, "Listening established"; "address" => %listen_multiaddr.clone());
-        //         }
-        //         Err(err) => {
-        //             crit!(
-        //                 self.log,
-        //                 "Unable to listen on libp2p address";
-        //                 "error" => ?err,
-        //                 "listen_multiaddr" => %listen_multiaddr,
-        //             );
-        //             return Err("Libp2p was unable to listen on the given listen address.".into());
-        //         }
-        //     };
-        // }
+        let listen_multiaddr = match config.libp2p_transport {
+            Libp2pTransport::Nym => self.address.clone().expect("nym address not found"),
+            Libp2pTransport::Tcp => format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
+                .parse()
+                .unwrap(),
+            _ => unimplemented!("not supported for now"),
+        };
 
-        // listen on nym address
-        let listen_multiaddr = self.address.clone();
         match self.swarm.listen_on(listen_multiaddr.clone()) {
             Ok(_) => {
                 let mut log_address = listen_multiaddr.clone();
@@ -453,75 +441,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 );
                 return Err("Libp2p was unable to listen on the given listen address.".into());
             }
-        };
-
-        // // helper closure for dialing peers
-        // let mut dial = |mut multiaddr: Multiaddr| {
-        //     // strip the p2p protocol if it exists
-        //     strip_peer_id(&mut multiaddr);
-        //     match self.swarm.dial(multiaddr.clone()) {
-        //         Ok(()) => debug!(self.log, "Dialing libp2p peer"; "address" => %multiaddr),
-        //         Err(err) => {
-        //             debug!(self.log, "Could not connect to peer"; "address" => %multiaddr, "error" => ?err)
-        //         }
-        //     };
-        // };
-
-        // info!(self.log, "libp2p nodes"; "nym nodes" => ?config.libp2p_nodes);
-        // attempt to connect to user-input libp2p nodes
-        // for multiaddr in &config.libp2p_nodes {
-        //     if multiaddr == &self.address {
-        //         continue;
-        //     }
-        //
-        //     dial(multiaddr.clone());
-        // }
-
-        // debug!(
-        //     self.log, "known multiaddrs"; "multiaddrs" => ?self.network_globals.known_multiaddrs()
-        // );
-        //
-        // // attempt to connect to known libp2p nodes
-        // for multiaddr in &self.network_globals.known_multiaddrs() {
-        //     if multiaddr == &self.address {
-        //         continue;
-        //     }
-        //
-        //     dial(multiaddr.clone());
-        // }
-
-        // // attempt to connect to any specified boot-nodes
-        // let mut boot_nodes = config.boot_nodes_enr.clone();
-        // boot_nodes.dedup();
-        //
-        // for bootnode_enr in boot_nodes {
-        //     for multiaddr in &bootnode_enr.multiaddr() {
-        //         // ignore udp multiaddr if it exists
-        //         let components = multiaddr.iter().collect::<Vec<_>>();
-        //         if let MProtocol::Udp(_) = components[1] {
-        //             continue;
-        //         }
-        //
-        //         if !self
-        //             .network_globals
-        //             .peers
-        //             .read()
-        //             .is_connected_or_dialing(&bootnode_enr.peer_id())
-        //         {
-        //             dial(multiaddr.clone());
-        //         }
-        //     }
-        // }
-        //
-        // for multiaddr in &config.boot_nodes_multiaddr {
-        //     // check TCP support for dialing
-        //     if multiaddr
-        //         .iter()
-        //         .any(|proto| matches!(proto, MProtocol::Tcp(_)))
-        //     {
-        //         dial(multiaddr.clone());
-        //     }
-        // }
+        }
 
         let mut subscribed_topics: Vec<GossipKind> = vec![];
 
