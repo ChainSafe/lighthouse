@@ -22,6 +22,7 @@ fn pick_port() -> u16 {
 
 /// Instance of nym client
 pub struct NymClient {
+    ps: Child,
     pub port: u16,
 }
 
@@ -56,12 +57,17 @@ impl NymClient {
         let stderr = ps.stderr.take().expect("Failed to get stderr");
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
+            println!("{line}");
             if line.contains("The address of this client is") {
-                println!("{line}");
+                // println!("{line}");
                 break;
             }
         }
 
-        Self { port }
+        Self { ps, port }
+    }
+
+    pub fn process(self) -> Child {
+        self.ps
     }
 }

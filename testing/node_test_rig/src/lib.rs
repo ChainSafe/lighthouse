@@ -107,7 +107,7 @@ pub fn testing_client_config() -> ClientConfig {
 
     client_config.genesis = ClientGenesis::Interop {
         validator_count: 8,
-        genesis_time: now,
+        genesis_time: now, // + Duration::from_secs(240).as_secs(),
     };
 
     client_config

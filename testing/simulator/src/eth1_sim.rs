@@ -28,12 +28,14 @@ const SUGGESTED_FEE_RECIPIENT: [u8; 20] =
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
 
 pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
-    let leading = value_t!(matches, "leading-node", Libp2pTransport).expect("missing leading_node");
-    let nym_node_count = value_t!(matches, "nym-nodes", usize).expect("missing nym-nodes default");
-    let tcp_node_count = value_t!(matches, "tcp-nodes", usize).expect("missing tcp-nodes default");
-    let either_node_count =
-        value_t!(matches, "either-nodes", usize).expect("missing tcp-nodes default");
-    let node_count = nym_node_count + tcp_node_count + either_node_count + 1; // 1 here is for the leading node.
+    let node_count = value_t!(matches, "nodes", usize).expect("missing nodes default");
+    let transport = value_t!(matches, "transport", Libp2pTransport).expect("missing transport");
+    // let leading = value_t!(matches, "leading-node", Libp2pTransport).expect("missing leading_node");
+    // let nym_node_count = value_t!(matches, "nym-nodes", usize).expect("missing nym-nodes default");
+    // let tcp_node_count = value_t!(matches, "tcp-nodes", usize).expect("missing tcp-nodes default");
+    // let either_node_count =
+    //     value_t!(matches, "either-nodes", usize).expect("missing tcp-nodes default");
+    // let node_count = nym_node_count + tcp_node_count + either_node_count + 1; // 1 here is for the leading node.
     let validators_per_node = value_t!(matches, "validators_per_node", usize)
         .expect("missing validators_per_node default");
     let speed_up_factor =
@@ -118,13 +120,17 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         // directly in the block below, so returning the instances of nym clients
         // is necessary here.
         let nym_clients = {
-            let mut count = nym_node_count + either_node_count;
-            if !matches!(leading, Libp2pTransport::Tcp) {
-                count += 1;
-            }
+            // let mut count = nym_node_count + either_node_count;
+            // if !matches!(leading, Libp2pTransport::Tcp) {
+            //     count += 1;
+            // }
 
-            println!("Setting up {} nym clients...", count);
-            future::join_all((0..count).map(|_| NymClient::start())).await
+            if matches!(transport, Libp2pTransport::Tcp) {
+                vec![]
+            } else {
+                println!("Setting up {} nym clients...", node_count);
+                future::join_all((0..node_count).map(|_| NymClient::start())).await
+            }
         };
 
         let mut nym_ports = nym_clients.iter().map(|c| c.port).collect::<Vec<_>>();
@@ -162,6 +168,7 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
 
         let mut beacon_config = testing_client_config();
 
+        beacon_config.network.libp2p_transport = transport.clone();
         beacon_config.genesis = ClientGenesis::DepositContract;
         beacon_config.eth1.endpoint = Eth1Endpoint::NoAuth(eth1_endpoint);
         beacon_config.eth1.deposit_contract_address = deposit_contract_address;
@@ -175,10 +182,13 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         beacon_config.eth1.auto_update_interval_millis = eth1_block_time.as_millis() as u64;
         beacon_config.eth1.chain_id = Eth1Id::from(chain_id);
         beacon_config.network.target_peers = node_count - 1;
-        beacon_config.network.libp2p_transport = leading.clone();
+        // beacon_config.network.libp2p_transport = leading.clone();
         beacon_config.network.enr_address = (Some(Ipv4Addr::LOCALHOST), None);
+        // beacon_config.network.disable_discovery = true;
+        beacon_config.network.target_peers = node_count - 1;
 
-        if !matches!(&leading, Libp2pTransport::Tcp) {
+        if !matches!(&transport, Libp2pTransport::Tcp) {
+            // set up nym client
             let port = nym_ports
                 .pop()
                 .unwrap_or_else(|| unreachable!("checked above"));
@@ -204,44 +214,59 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         let network = LocalNetwork::new(context.clone(), beacon_config.clone()).await?;
 
         /*
-         * One by one, add beacon nodes with tcp transport to the network.
-         */
-        {
-            if tcp_node_count > 0 {
-                let mut config = beacon_config.clone();
-                config.network.libp2p_transport = Libp2pTransport::Tcp;
-
-                for _ in 0..tcp_node_count {
-                    network.add_beacon_node(config.clone()).await?;
-                }
-            }
-        }
-
-        /*
          * One by one, add beacon nodes with nym transport to the network.
          */
-        for _ in 0..nym_node_count {
+        for _ in 0..node_count - 1 {
             let mut config = beacon_config.clone();
             // TODO: unreachable! in else block
             if let Some(port) = nym_ports.pop() {
-                config.network.libp2p_transport = Libp2pTransport::Nym;
                 config.network.nym_client_address.tcp_port = port;
-                network.add_beacon_node(config.clone()).await?;
             }
+
+            network.add_beacon_node(config.clone()).await?;
         }
 
-        /*
-         * One by one, add beacon nodes with nym either tcp transport to the network.
-         */
-        for _ in 0..either_node_count {
-            let mut config = beacon_config.clone();
-            // TODO: unreachable! in else block
-            if let Some(port) = nym_ports.pop() {
-                config.network.libp2p_transport = Libp2pTransport::NymEitherTcp;
-                config.network.nym_client_address.tcp_port = port;
-                network.add_beacon_node(config.clone()).await?;
-            }
-        }
+        assert_eq!(network.listen_addrs().len(), node_count);
+
+        // /*
+        //  * One by one, add beacon nodes with tcp transport to the network.
+        //  */
+        // {
+        //     if tcp_node_count > 0 {
+        //         let mut config = beacon_config.clone();
+        //         config.network.libp2p_transport = Libp2pTransport::Tcp;
+        //
+        //         for _ in 0..tcp_node_count {
+        //             network.add_beacon_node(config.clone()).await?;
+        //         }
+        //     }
+        // }
+        //
+        // /*
+        //  * One by one, add beacon nodes with nym transport to the network.
+        //  */
+        // for _ in 0..nym_node_count {
+        //     let mut config = beacon_config.clone();
+        //     // TODO: unreachable! in else block
+        //     if let Some(port) = nym_ports.pop() {
+        //         config.network.libp2p_transport = Libp2pTransport::Nym;
+        //         config.network.nym_client_address.tcp_port = port;
+        //         network.add_beacon_node(config.clone()).await?;
+        //     }
+        // }
+        //
+        // /*
+        //  * One by one, add beacon nodes with nym either tcp transport to the network.
+        //  */
+        // for _ in 0..either_node_count {
+        //     let mut config = beacon_config.clone();
+        //     // TODO: unreachable! in else block
+        //     if let Some(port) = nym_ports.pop() {
+        //         config.network.libp2p_transport = Libp2pTransport::NymEitherTcp;
+        //         config.network.nym_client_address.tcp_port = port;
+        //         network.add_beacon_node(config.clone()).await?;
+        //     }
+        // }
 
         /*
          * One by one, add validators to the network.
@@ -269,6 +294,26 @@ pub fn run_eth1_sim(matches: &ArgMatches) -> Result<(), String> {
         let duration_to_genesis = network.duration_to_genesis().await;
         println!("Duration to genesis: {}", duration_to_genesis.as_secs());
         sleep(duration_to_genesis).await;
+
+        // for node in network.beacon_nodes.read().iter() {
+        //     let network = node
+        //         .client
+        //         .network_globals
+        //         .clone()
+        //         .expect("should have network");
+        //
+        //     let connected_peers = network.connected_peers();
+        //     if connected_peers < 2 {
+        //         panic!(
+        //             "Node {:?} has {} peers",
+        //             network.listen_multiaddrs, connected_peers
+        //         );
+        //     }
+        //
+        //     // if node.client.network_globals.peers() < 2 {
+        //     //     panic!("Node {} has {} peers", node.listen_address, node.peers());
+        //     // }
+        // }
 
         if post_merge_sim {
             let executor = executor.clone();

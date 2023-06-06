@@ -40,6 +40,8 @@ pub struct Context<'a> {
 
 type BoxedTransport = Boxed<(PeerId, StreamMuxerBox)>;
 
+// TODO: Circuit Relay
+//
 /// The implementation supports TCP/IP, WebSockets over TCP/IP, noise as the encryption layer, and
 /// mplex as the multiplexing layer.
 pub async fn build_tcp_transport(local_private_key: Keypair) -> std::io::Result<BoxedTransport> {
@@ -68,22 +70,28 @@ pub async fn build_tcp_transport(local_private_key: Keypair) -> std::io::Result<
 pub async fn build_nym_transport(
     local_private_key: Keypair,
     nym_client_uri: String,
+    address: &mut Multiaddr,
 ) -> std::io::Result<BoxedTransport> {
     let nym = NymTransport::new(&nym_client_uri, local_private_key.clone())
         .await
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
+    *address = nym.listen_addr.clone();
+
     Ok(nym.map(|a, _| (a.0, StreamMuxerBox::new(a.1))).boxed())
 }
 
+// TODO: Circuit Relay
+//
 /// Build a transport that supports both TCP and NYM connections.
 pub async fn build_transport(
     local_private_key: Keypair,
     nym_client_uri: String,
+    address: &mut Multiaddr,
 ) -> std::io::Result<BoxedTransport> {
     let (tcp, nym) = futures::join!(
         build_tcp_transport(local_private_key.clone()),
-        build_nym_transport(local_private_key, nym_client_uri)
+        build_nym_transport(local_private_key, nym_client_uri, address)
     );
 
     Ok(tcp?

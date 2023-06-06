@@ -41,6 +41,8 @@ pub async fn publish_block<T: BeaconChainTypes>(
     };
     let delay = get_block_delay_ms(seen_timestamp, block.message(), &chain.slot_clock);
 
+    metrics::inc_counter_vec(&metrics::BEACON_BLOCK_PUBLISHED, &[&block.slot().to_string()]);
+
     debug!(
         log,
         "Signed block published to HTTP API";

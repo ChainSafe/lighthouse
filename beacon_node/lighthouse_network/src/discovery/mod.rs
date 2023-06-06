@@ -352,7 +352,7 @@ impl<TSpec: EthSpec> Discovery<TSpec> {
         }
         // Immediately start a FindNode query
         let target_peers = std::cmp::min(FIND_NODE_QUERY_CLOSEST_PEERS, target_peers);
-        debug!(self.log, "Starting a peer discovery request"; "target_peers" => target_peers );
+        trace!(self.log, "Starting a peer discovery request"; "target_peers" => target_peers );
         self.find_peer_active = true;
         self.start_query(QueryType::FindPeers, target_peers, |_| true);
     }
@@ -822,7 +822,7 @@ impl<TSpec: EthSpec> Discovery<TSpec> {
                         debug!(self.log, "Discovery query yielded no results.");
                     }
                     Ok(r) => {
-                        debug!(self.log, "Discovery query completed"; "peers_found" => r.len());
+                        trace!(self.log, "Discovery query completed"; "peers_found" => r.len());
                         let mut results: HashMap<_, Option<Instant>> = HashMap::new();
                         r.iter().for_each(|enr| {
                             // cache the found ENR's
@@ -960,15 +960,22 @@ impl<TSpec: EthSpec> NetworkBehaviour for Discovery<TSpec> {
 
     // Handles the libp2p request to obtain multiaddrs for peer_id's in order to dial them.
     fn addresses_of_peer(&mut self, peer_id: &PeerId) -> Vec<Multiaddr> {
-        if let Some(enr) = self.enr_of_peer(peer_id) {
-            // ENR's may have multiple Multiaddrs. The multi-addr associated with the UDP
-            // port is removed, which is assumed to be associated with the discv5 protocol (and
-            // therefore irrelevant for other libp2p components).
-            enr.multiaddr_tcp()
-        } else {
-            // PeerId is not known
-            Vec::new()
-        }
+        let trust_peers = self.network_globals.trust_peers();
+        let Some(addr) = trust_peers.get(peer_id) else {
+            return Vec::new();
+        };
+
+        vec![addr.clone()]
+
+        // if let Some(enr) = self.enr_of_peer(peer_id) {
+        //     // ENR's may have multiple Multiaddrs. The multi-addr associated with the UDP
+        //     // port is removed, which is assumed to be associated with the discv5 protocol (and
+        //     // therefore irrelevant for other libp2p components).
+        //     enr.multiaddr_tcp()
+        // } else {
+        //     // PeerId is not known
+        //     Vec::new()
+        // }
     }
 
     // Main execution loop to drive the behaviour

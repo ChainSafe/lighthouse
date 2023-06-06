@@ -19,7 +19,7 @@ use lighthouse_network::rpc::*;
 use lighthouse_network::{
     MessageId, NetworkGlobals, PeerId, PeerRequestId, PubsubMessage, Request, Response,
 };
-use slog::{debug, o, trace};
+use slog::{debug, info, o, trace};
 use slog::{error, warn};
 use std::cmp;
 use std::sync::Arc;
@@ -142,6 +142,12 @@ impl<T: BeaconChainTypes> Router<T> {
 
     /// Handle all messages incoming from the network service.
     fn handle_message(&mut self, message: RouterMessage<T::EthSpec>) {
+        info!(
+            self.log,
+            "Router handling message";
+            "msg" => format!("{:?}", message)
+        );
+
         match message {
             // we have initiated a connection to a peer or the peer manager has requested a
             // re-status

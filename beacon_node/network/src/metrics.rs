@@ -398,6 +398,13 @@ lazy_static! {
         "beacon_processor_reprocessing_queue_sent_optimistic_updates",
         "Number of queued light client optimistic updates where as matching block has been imported."
     );
+
+    pub static ref BEACON_BLOCK_RECEIVED: Result<IntCounterVec> =
+    try_create_int_counter_vec(
+        "beacon_block_received",
+        "Beacon block received",
+        &["block_num"]
+    );
 }
 
 pub fn update_bandwidth_metrics(bandwidth: Arc<BandwidthSinks>) {

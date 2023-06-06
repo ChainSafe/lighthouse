@@ -42,4 +42,13 @@ lazy_static::lazy_static! {
         "http_api_block_published_very_late_total",
         "The count of times a block was published beyond the attestation deadline"
     );
+        /*
+     * Nym Metrics
+     */
+    pub static ref BEACON_BLOCK_PUBLISHED: Result<IntCounterVec> =
+        try_create_int_counter_vec(
+            "beacon_block_published",
+            "Beacon block published",
+            &["block_num"]
+        );
 }

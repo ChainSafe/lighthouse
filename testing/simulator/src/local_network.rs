@@ -1,3 +1,5 @@
+use libp2p::PeerId;
+use multiaddr::Multiaddr;
 use node_test_rig::{
     environment::RuntimeContext,
     eth2::{types::StateId, BeaconNodeHttpClient},
@@ -6,20 +8,22 @@ use node_test_rig::{
 };
 use parking_lot::RwLock;
 use sensitive_url::SensitiveUrl;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use std::{
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
 };
-use std::{sync::Arc, time::Duration};
 use types::{Epoch, EthSpec};
 
 const BOOTNODE_PORT: u16 = 42424;
-pub const INVALID_ADDRESS: &str = "http://127.0.0.1:42423";
+// pub const INVALID_ADDRESS: &str = "http://127.0.0.1:42423";
 
 pub const EXECUTION_PORT: u16 = 4000;
 
 pub const TERMINAL_DIFFICULTY: u64 = 6400;
 pub const TERMINAL_BLOCK: u64 = 64;
+pub const VC_METRICS_BASE: u16 = 52525;
+pub const BN_METRICS_BASE: u16 = 62626;
 
 /// Helper struct to reduce `Arc` usage.
 pub struct Inner<E: EthSpec> {
@@ -66,6 +70,10 @@ impl<E: EthSpec> LocalNetwork<E> {
         beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT);
         beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT);
         beacon_config.network.discv5_config.table_filter = |_| true;
+        beacon_config.http_metrics.enabled = true;
+        beacon_config.http_metrics.listen_port = BN_METRICS_BASE;
+        beacon_config.http_metrics.allocator_metrics_enabled = true;
+        beacon_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
 
         let execution_node = if let Some(el_config) = &mut beacon_config.execution_layer {
             let mock_execution_config = MockExecutionConfig {
@@ -119,6 +127,35 @@ impl<E: EthSpec> LocalNetwork<E> {
         self.validator_clients.read().len()
     }
 
+    pub fn listen_addrs(&self) -> Vec<Multiaddr> {
+        self.beacon_nodes
+            .read()
+            .iter()
+            .filter_map(|node| node.client.libp2p_listen_addresses())
+            .flatten()
+            .collect()
+    }
+
+    fn update_trust_peers(&self) -> Option<()> {
+        let trust_peers = self
+            .beacon_nodes
+            .read()
+            .iter()
+            .filter_map(|n| {
+                Some((
+                    n.client.peer_id()?,
+                    n.client.libp2p_listen_addresses()?[0].clone(),
+                ))
+            })
+            .collect::<HashMap<PeerId, Multiaddr>>();
+
+        self.beacon_nodes.read().iter().for_each(|node| {
+            node.client.set_trust_peers(trust_peers.clone());
+        });
+
+        Some(())
+    }
+
     /// Adds a beacon node to the network, connecting to the 0'th beacon node via ENR.
     pub async fn add_beacon_node(&self, mut beacon_config: ClientConfig) -> Result<(), String> {
         let self_1 = self.clone();
@@ -143,6 +180,10 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config.network.enr_udp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.enr_tcp4_port = Some(BOOTNODE_PORT + count);
             beacon_config.network.discv5_config.table_filter = |_| true;
+            beacon_config.http_metrics.enabled = true;
+            beacon_config.http_metrics.listen_port = BN_METRICS_BASE + count;
+            beacon_config.http_metrics.allocator_metrics_enabled = true;
+            beacon_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
         }
         if let Some(el_config) = &mut beacon_config.execution_layer {
             let config = MockExecutionConfig {
@@ -173,7 +214,9 @@ impl<E: EthSpec> LocalNetwork<E> {
             beacon_config,
         )
         .await?;
+
         self_1.beacon_nodes.write().push(beacon_node);
+        self_1.update_trust_peers();
         Ok(())
     }
 
@@ -184,7 +227,7 @@ impl<E: EthSpec> LocalNetwork<E> {
         mut validator_config: ValidatorConfig,
         beacon_node: usize,
         validator_files: ValidatorFiles,
-        invalid_first_beacon_node: bool, //to test beacon node fallbacks
+        _invalid_first_beacon_node: bool, //to test beacon node fallbacks
     ) -> Result<(), String> {
         let context = self
             .context
@@ -201,15 +244,23 @@ impl<E: EthSpec> LocalNetwork<E> {
                 .expect("Must have http started")
         };
 
+        validator_config.http_metrics.enabled = true;
+        validator_config.http_metrics.listen_port = VC_METRICS_BASE + beacon_node as u16;
+        validator_config.http_metrics.allocator_metrics_enabled = true;
+        validator_config.http_metrics.listen_addr = "0.0.0.0".parse().unwrap();
+
         let beacon_node = SensitiveUrl::parse(
             format!("http://{}:{}", socket_addr.ip(), socket_addr.port()).as_str(),
         )
         .unwrap();
-        validator_config.beacon_nodes = if invalid_first_beacon_node {
-            vec![SensitiveUrl::parse(INVALID_ADDRESS).unwrap(), beacon_node]
-        } else {
-            vec![beacon_node]
-        };
+        // validator_config.beacon_nodes = if invalid_first_beacon_node {
+        //     vec![SensitiveUrl::parse(INVALID_ADDRESS).unwrap(), beacon_node]
+        // } else {
+        //     vec![beacon_node]
+        // };
+
+        validator_config.beacon_nodes = vec![beacon_node];
+
         let validator_client = LocalValidatorClient::production_with_insecure_keypairs(
             context,
             validator_config,

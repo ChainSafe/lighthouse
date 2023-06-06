@@ -19,3 +19,5 @@ env_logger = "0.9.0"
 clap = "2.33.3"
 rayon = "1.4.1"
 sensitive_url  = { path = "../../common/sensitive_url" }
+multiaddr = { git = "https://github.com/ChainSafe/rust-multiaddr.git", rev = "2d21365f880622adf1c8e594b72e671dbac9dd64" }
+libp2p = "0.51.0"

@@ -184,16 +184,17 @@ pub async fn verify_full_sync_aggregates_up_to<E: EthSpec>(
         let sync_aggregate_count = remote_node
             .get_beacon_blocks::<E>(BlockId::Slot(Slot::new(slot)))
             .await
+            .map_err(|e| format!("Error while getting beacon block: {:?}", e))?
             .map(|resp| {
-                resp.unwrap()
-                    .data
+                resp.data
                     .message()
                     .body()
                     .sync_aggregate()
                     .map(|agg| agg.num_set_bits())
+                    .map_err(|_| format!("Altair block {} should have sync aggregate", slot))
             })
-            .map_err(|e| format!("Error while getting beacon block: {:?}", e))?
-            .map_err(|_| format!("Altair block {} should have sync aggregate", slot))?;
+            // If there's no block, then there's no sync aggregate.
+            .unwrap_or_else(|| Ok(0))?;
 
         if sync_aggregate_count != E::sync_committee_size() {
             return Err(format!(

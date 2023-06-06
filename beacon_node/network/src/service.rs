@@ -470,6 +470,8 @@ impl<T: BeaconChainTypes> NetworkService<T> {
         ev: NetworkEvent<RequestId, T::EthSpec>,
         shutdown_sender: &mut Sender<ShutdownReason>,
     ) {
+        info!(self.log, "Network event"; "event" => ?ev);
+
         match ev {
             NetworkEvent::PeerConnectedOutgoing(peer_id) => {
                 self.send_to_router(RouterMessage::StatusPeer(peer_id));

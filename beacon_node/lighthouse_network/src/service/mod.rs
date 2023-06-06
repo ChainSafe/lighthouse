@@ -1,6 +1,6 @@
 use self::behaviour::Behaviour;
 use self::gossip_cache::GossipCache;
-use crate::config::{gossipsub_config, Libp2pTransport, NetworkLoad};
+use crate::config::{gossipsub_config, NetworkLoad};
 use crate::discovery::{
     subnet_predicate, DiscoveredPeers, Discovery, FIND_NODE_QUERY_CLOSEST_PEERS,
 };
@@ -9,16 +9,16 @@ use crate::peer_manager::{
     ConnectionDirection, PeerManager, PeerManagerEvent,
 };
 use crate::peer_manager::{MIN_OUTBOUND_ONLY_FACTOR, PEER_EXCESS_FACTOR, PRIORITY_PEER_EXCESS};
-use crate::rpc::*;
 use crate::service::behaviour::BehaviourEvent;
 pub use crate::service::behaviour::Gossipsub;
 use crate::types::{
     fork_core_topics, subnet_from_topic_hash, GossipEncoding, GossipKind, GossipTopic,
     SnappyTransform, Subnet, SubnetDiscovery,
 };
-use crate::EnrExt;
-use crate::Eth2Enr;
+use crate::{build_tcp_transport, rpc::*};
+use crate::{build_transport, Eth2Enr};
 use crate::{error, metrics, Enr, NetworkGlobals, PubsubMessage, TopicHash};
+use crate::{EnrExt, Libp2pTransport};
 use api_types::{PeerRequestId, Request, RequestId, Response};
 use futures::stream::StreamExt;
 use gossipsub_scoring_parameters::{lighthouse_gossip_thresholds, PeerScoreSettings};
@@ -34,7 +34,7 @@ use libp2p::multiaddr::{Multiaddr, Protocol as MProtocol};
 use libp2p::swarm::{ConnectionLimits, Swarm, SwarmBuilder, SwarmEvent};
 use libp2p::PeerId;
 use libp2p::{relay, TransportExt};
-use slog::{crit, debug, info, o, trace, warn};
+use slog::{crit, debug, error, info, o, trace, warn};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::{
@@ -46,10 +46,7 @@ use types::ForkName;
 use types::{
     consts::altair::SYNC_COMMITTEE_SUBNET_COUNT, EnrForkId, EthSpec, ForkContext, Slot, SubnetId,
 };
-use utils::{
-    build_nym_transport, build_tcp_transport, build_transport, strip_peer_id,
-    Context as ServiceContext, MAX_CONNECTIONS_PER_PEER,
-};
+use utils::{build_nym_transport, Context as ServiceContext, MAX_CONNECTIONS_PER_PEER};
 
 pub mod api_types;
 mod behaviour;
@@ -117,6 +114,7 @@ pub enum NetworkEvent<AppReqId: ReqId, TSpec: EthSpec> {
 /// This core behaviour is managed by `Behaviour` which adds peer management to all core
 /// behaviours.
 pub struct Network<AppReqId: ReqId, TSpec: EthSpec> {
+    address: Option<Multiaddr>,
     swarm: libp2p::swarm::Swarm<Behaviour<AppReqId, TSpec>>,
     /* Auxiliary Fields */
     /// A collections of variables accessible outside the network service.
@@ -319,16 +317,30 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             }
         };
 
+        let mut address = None;
         let (swarm, bandwidth) = {
-            let nym_addr = config.nym_client_address.clone();
-            let uri = format!("ws://{}:{}", nym_addr.addr, nym_addr.tcp_port);
-            info!(log, "Connecting to nym client"; "address" => &uri);
-
             // Set up the transport - tcp/ws with noise and mplex
             let (transport, bandwidth) = match config.libp2p_transport {
-                Libp2pTransport::Nym => build_nym_transport(local_keypair.clone(), uri).await,
                 Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
-                Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone(), uri).await,
+                _ => {
+                    let nym_addr = config.nym_client_address.clone();
+                    let uri = format!("ws://{}:{}", nym_addr.addr, nym_addr.tcp_port);
+                    info!(log, "Connecting to nym client"; "address" => &uri);
+
+                    let mut self_addr = Multiaddr::empty();
+                    let t = match config.libp2p_transport {
+                        Libp2pTransport::Nym => {
+                            build_nym_transport(local_keypair.clone(), uri, &mut self_addr).await
+                        }
+                        Libp2pTransport::NymEitherTcp => {
+                            build_transport(local_keypair.clone(), uri, &mut self_addr).await
+                        }
+                        _ => unreachable!("checked before"),
+                    };
+
+                    address = Some(self_addr);
+                    t
+                }
             }
             .map_err(|e| format!("Failed to build transport: {:?}", e))?
             .with_bandwidth_logging();
@@ -375,6 +387,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         };
 
         let mut network = Network {
+            address,
             swarm,
             network_globals,
             enr_fork_id,
@@ -405,72 +418,28 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         info!(self.log, "Libp2p Starting"; "peer_id" => %enr.peer_id(), "bandwidth_config" => format!("{}-{}", config.network_load, NetworkLoad::from(config.network_load).name));
         debug!(self.log, "Attempting to open listening ports"; config.listen_addrs(), "discovery_enabled" => !config.disable_discovery);
 
-        for listen_multiaddr in config.listen_addrs().tcp_addresses() {
-            match self.swarm.listen_on(listen_multiaddr.clone()) {
-                Ok(_) => {
-                    let mut log_address = listen_multiaddr;
-                    log_address.push(MProtocol::P2p(enr.peer_id().into()));
-                    info!(self.log, "Listening established"; "address" => %log_address);
-                }
-                Err(err) => {
-                    crit!(
-                        self.log,
-                        "Unable to listen on libp2p address";
-                        "error" => ?err,
-                        "listen_multiaddr" => %listen_multiaddr,
-                    );
-                    return Err("Libp2p was unable to listen on the given listen address.".into());
-                }
-            };
-        }
-
-        // helper closure for dialing peers
-        let mut dial = |mut multiaddr: Multiaddr| {
-            // strip the p2p protocol if it exists
-            strip_peer_id(&mut multiaddr);
-            match self.swarm.dial(multiaddr.clone()) {
-                Ok(()) => debug!(self.log, "Dialing libp2p peer"; "address" => %multiaddr),
-                Err(err) => {
-                    debug!(self.log, "Could not connect to peer"; "address" => %multiaddr, "error" => ?err)
-                }
-            };
+        let listen_multiaddr = match config.libp2p_transport {
+            Libp2pTransport::Nym => self.address.clone().expect("nym address not found"),
+            Libp2pTransport::Tcp => format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
+                .parse()
+                .unwrap(),
+            _ => unimplemented!("not supported for now"),
         };
 
-        // attempt to connect to user-input libp2p nodes
-        for multiaddr in &config.libp2p_nodes {
-            dial(multiaddr.clone());
-        }
-
-        // attempt to connect to any specified boot-nodes
-        let mut boot_nodes = config.boot_nodes_enr.clone();
-        boot_nodes.dedup();
-
-        for bootnode_enr in boot_nodes {
-            for multiaddr in &bootnode_enr.multiaddr() {
-                // ignore udp multiaddr if it exists
-                let components = multiaddr.iter().collect::<Vec<_>>();
-                if let MProtocol::Udp(_) = components[1] {
-                    continue;
-                }
-
-                if !self
-                    .network_globals
-                    .peers
-                    .read()
-                    .is_connected_or_dialing(&bootnode_enr.peer_id())
-                {
-                    dial(multiaddr.clone());
-                }
+        match self.swarm.listen_on(listen_multiaddr.clone()) {
+            Ok(_) => {
+                let mut log_address = listen_multiaddr.clone();
+                log_address.push(MProtocol::P2p(enr.peer_id().into()));
+                info!(self.log, "Listening established"; "address" => %listen_multiaddr.clone());
             }
-        }
-
-        for multiaddr in &config.boot_nodes_multiaddr {
-            // check TCP support for dialing
-            if multiaddr
-                .iter()
-                .any(|proto| matches!(proto, MProtocol::Tcp(_)))
-            {
-                dial(multiaddr.clone());
+            Err(err) => {
+                crit!(
+                    self.log,
+                    "Unable to listen on libp2p address";
+                    "error" => ?err,
+                    "listen_multiaddr" => %listen_multiaddr,
+                );
+                return Err("Libp2p was unable to listen on the given listen address.".into());
             }
         }
 
@@ -1325,6 +1294,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
         }
     }
 
+    #[allow(unused)]
     /// Handle a discovery event.
     fn inject_discovery_event(
         &mut self,
@@ -1438,8 +1408,10 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     BehaviourEvent::Gossipsub(ge) => self.inject_gs_event(ge),
                     BehaviourEvent::Eth2Rpc(re) => self.inject_rpc_event(re),
                     BehaviourEvent::Discovery(de) => self.inject_discovery_event(de),
+                    // BehaviourEvent::Discovery(_) => None,
                     BehaviourEvent::Identify(ie) => self.inject_identify_event(ie),
                     BehaviourEvent::PeerManager(pe) => self.inject_pm_event(pe),
+                    // BehaviourEvent::PeerManager(_) => None,
                     BehaviourEvent::Relay(_) => todo!(),
                 },
                 SwarmEvent::ConnectionEstablished { .. } => None,
@@ -1448,7 +1420,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     local_addr,
                     send_back_addr,
                 } => {
-                    trace!(self.log, "Incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr);
+                    debug!(self.log, "Incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr);
                     None
                 }
                 SwarmEvent::IncomingConnectionError {
@@ -1456,25 +1428,25 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                     send_back_addr,
                     error,
                 } => {
-                    debug!(self.log, "Failed incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr, "error" => %error);
+                    error!(self.log, "Failed incoming connection"; "our_addr" => %local_addr, "from" => %send_back_addr, "error" => %error);
                     None
                 }
                 SwarmEvent::OutgoingConnectionError { peer_id, error } => {
-                    debug!(self.log, "Failed to dial address"; "peer_id" => ?peer_id,  "error" => %error);
+                    error!(self.log, "Failed to dial address"; "peer_id" => ?peer_id,  "error" => %error);
                     None
                 }
                 SwarmEvent::BannedPeer {
                     peer_id,
                     endpoint: _,
                 } => {
-                    debug!(self.log, "Banned peer connection rejected"; "peer_id" => %peer_id);
+                    warn!(self.log, "Banned peer connection rejected"; "peer_id" => %peer_id);
                     None
                 }
                 SwarmEvent::NewListenAddr { address, .. } => {
                     Some(NetworkEvent::NewListenAddr(address))
                 }
                 SwarmEvent::ExpiredListenAddr { address, .. } => {
-                    debug!(self.log, "Listen address expired"; "address" => %address);
+                    warn!(self.log, "Listen address expired"; "address" => %address);
                     None
                 }
                 SwarmEvent::ListenerClosed {
@@ -1489,7 +1461,7 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
                 }
                 SwarmEvent::ListenerError { error, .. } => {
                     // this is non fatal, but we still check
-                    warn!(self.log, "Listener error"; "error" => ?error);
+                    error!(self.log, "Listener error"; "error" => ?error);
                     if Swarm::listeners(&self.swarm).count() == 0 {
                         Some(NetworkEvent::ZeroListeners)
                     } else {

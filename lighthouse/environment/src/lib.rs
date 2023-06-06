@@ -203,7 +203,9 @@ impl<E: EthSpec> EnvironmentBuilder<E> {
 
         // Disable file logging if values set to 0.
         if config.max_log_size == 0 || config.max_log_number == 0 {
-            self.log = Some(stdout_logger);
+            let _guard = slog_scope::set_global_logger(stdout_logger);
+            let log = slog_scope::logger();
+            self.log = Some(log);
             return Ok(self);
         }
 

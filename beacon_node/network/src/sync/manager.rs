@@ -383,6 +383,8 @@ impl<T: BeaconChainTypes> SyncManager<T> {
                         let head = self.chain.best_slot();
                         let current_slot = self.chain.slot().unwrap_or_else(|_| Slot::new(0));
 
+                        info!(self.log, "sync state"; "head" => %head, "current_slot" => %current_slot);
+
                         let peers = self.network_globals.peers.read();
                         if current_slot >= head
                             && current_slot.sub(head) <= (SLOT_IMPORT_TOLERANCE as u64)
@@ -491,6 +493,8 @@ impl<T: BeaconChainTypes> SyncManager<T> {
     }
 
     fn handle_message(&mut self, sync_message: SyncMessage<T::EthSpec>) {
+        info!(self.log, "Sync message received"; "message" => ?sync_message);
+
         match sync_message {
             SyncMessage::AddPeer(peer_id, info) => {
                 self.add_peer(peer_id, info);
@@ -649,6 +653,14 @@ impl<T: BeaconChainTypes> SyncManager<T> {
         beacon_block: Option<Arc<SignedBeaconBlock<T::EthSpec>>>,
         seen_timestamp: Duration,
     ) {
+        info!(
+            self.log,
+            "RPC block received";
+            "request_id" => ?request_id,
+            "peer_id" => %peer_id,
+            "beacon_block" => ?beacon_block,
+            "seen_timestamp" => ?seen_timestamp
+        );
         match request_id {
             RequestId::SingleBlock { id } => self.block_lookups.single_block_lookup_response(
                 id,
