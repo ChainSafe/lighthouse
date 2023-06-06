@@ -6,6 +6,21 @@ This memo describes use Nym mixnet as an alternative transport for Lighthouse Et
 - Rust >= 1.68
 - Build dependencies (see [docs](https://lighthouse-book.sigmaprime.io/installation-source.html#dependencies) for full list)
 
+
+## Simulation
+
+Run a simulation with TCP transport (for reference):
+```bash
+cargo run -p simulator --release -- eth1-sim -t tcp --nodes 3 --validators_per_node 1
+```
+
+Run a simulation with Nym transport:
+```bash
+cargo run -p simulator --release -- eth1-sim -t nym --nodes 3 --validators_per_node 1
+```
+
+To monitore mentrics (e.g. block latency) see instruction in [lighthouse-metrics](https://github.com/ChainSafe/lighthouse-metrics/tree/nym) repo. Use `nym` branch to access Nym metrics dashboard.
+
 ## Usage 
 
 ### Setup local Nym WebSocket client
