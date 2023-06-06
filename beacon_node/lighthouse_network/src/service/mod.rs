@@ -330,15 +330,15 @@ impl<AppReqId: ReqId, TSpec: EthSpec> Network<AppReqId, TSpec> {
             //     Libp2pTransport::Tcp => build_tcp_transport(local_keypair.clone()).await,
             //     Libp2pTransport::NymEitherTcp => build_transport(local_keypair.clone(), uri).await,
             // }
-            let (transport, address) = build_nym_transport(local_keypair.clone(), uri)
-                .await
-                .map_err(|e| format!("Failed to build transport: {:?}", e))?;
-            // let transport = build_tcp_transport(local_keypair.clone())
+            // let (transport, address) = build_nym_transport(local_keypair.clone(), uri)
             //     .await
             //     .map_err(|e| format!("Failed to build transport: {:?}", e))?;
-            // let address = format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
-            //     .parse()
-            //     .unwrap();
+            let transport = build_tcp_transport(local_keypair.clone())
+                .await
+                .map_err(|e| format!("Failed to build transport: {:?}", e))?;
+            let address = format!("/ip4/127.0.0.1/tcp/{}", config.enr_tcp4_port.unwrap())
+                .parse()
+                .unwrap();
 
             let (transport, bandwidth) = transport.with_bandwidth_logging();
 
