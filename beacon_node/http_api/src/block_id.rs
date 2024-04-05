@@ -1,11 +1,20 @@
+use crate::deep_storage::DeepStorageBlockCapella;
+use crate::version::inconsistent_fork_rejection;
 use crate::{state_id::checkpoint_slot_and_execution_optimistic, ExecutionOptimistic};
 use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, WhenSlotSkipped};
 use eth2::types::BlobIndicesQuery;
 use eth2::types::BlockId as CoreBlockId;
+use lighthouse_network::discv5::enr::k256::elliptic_curve::rand_core::block;
+use merkle_proof::MerkleTree;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
+use types::ExecPayload;
+use crate::deep_storage::DeepStorageBlock;
+use types::light_client_update::EXECUTION_PAYLOAD_INDEX;
+use types::{BeaconBlockBody, ForkName};
 use types::{BlobSidecarList, EthSpec, Hash256, SignedBeaconBlock, SignedBlindedBeaconBlock, Slot};
+
 
 /// Wraps `eth2::types::BlockId` and provides a simple way to obtain a block or root for a given
 /// `BlockId`.
@@ -282,6 +291,94 @@ impl BlockId {
         };
         Ok(blob_sidecar_list_filtered)
     }
+
+    pub fn merkle_brunch_root<T: BeaconChainTypes>(
+        &self,
+        chain: &BeaconChain<T>,
+    ) -> Result<(Hash256, Vec<Hash256>), warp::Rejection> {
+        match &self.0 {
+            eth2::types::BlockId::Slot(slot) => {
+                let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
+                let index = epoch
+                    .position(*slot, T::EthSpec::slots_per_epoch())
+                    .unwrap();
+
+                let block_roots_iter = chain
+                    .forwards_iter_block_roots_until(
+                        epoch.start_slot(T::EthSpec::slots_per_epoch()),
+                        epoch.end_slot(T::EthSpec::slots_per_epoch()),
+                    )
+                    .unwrap();
+
+                let block_roots = block_roots_iter.map(|e| e.unwrap().0).collect::<Vec<_>>();
+
+                let depth = T::EthSpec::slots_per_epoch().ilog2() as usize;
+                let merkle_tree = MerkleTree::create(&block_roots, depth);
+
+                merkle_tree
+                    .generate_proof(index, depth)
+                    .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))
+            }
+            _ => todo!(),
+        }
+    }
+
+    // pub async fn block_body_merkle_proof<T: BeaconChainTypes>(
+    //     &self,
+    //     chain: &BeaconChain<T>,
+    // ) -> Result<DeepStorageBlock<E>, warp::Rejection> {
+    //     let block_id = self.clone();
+    //     let (block_root, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
+
+    //     let (block, _, _) = block_id.full_block(&chain).await?;
+
+    //     let beacon_block_body = BeaconBlockBody::from(
+    //         block
+    //             .message()
+    //             .body_capella()
+    //             .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))?
+    //             .to_owned(),
+    //     );
+
+    //     let execution = block
+    //         .message()
+    //         .execution_payload()
+    //         .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))?
+    //         .to_execution_payload_header();
+        
+    //     let execution_branch = beacon_block_body
+    //         .block_body_merkle_proof(EXECUTION_PAYLOAD_INDEX)
+    //         .unwrap();
+
+    //     let fork_name = block
+    //         .fork_name(&chain.spec)
+    //         .map_err(inconsistent_fork_rejection)?;
+
+    //     let data = match fork_name {
+    //         // ForkName::Altair | ForkName::Merge => {
+    //         //     let header = LightClientHeaderAltair::from_ssz_bytes(bytes)?;
+    //         //     LightClientHeader::Altair(header)
+    //         // }
+    //         ForkName::Capella => DeepStorageBlock::Capella(DeepStorageBlockCapella {
+    //             block_root_branch,
+    //             execution: *execution.as_capella().unwrap(),
+    //             execution_branch,
+    //             _phantom_data: std::marker::PhantomData,
+    //         }),
+    //         // ForkName::Deneb => {
+    //         //     let header = LightClientHeaderDeneb::from_ssz_bytes(bytes)?;
+    //         //     LightClientHeader::Deneb(header)
+    //         // }
+    //         // ForkName::Base => {
+    //         //     return Err(ssz::DecodeError::BytesInvalid(format!(
+    //         //         "LightClientHeader decoding for {fork_name} not implemented"
+    //         //     )))
+    //         // }
+    //         _ => todo!(),
+    //     };
+
+    //     Ok(data)
+    // }
 }
 
 impl FromStr for BlockId {

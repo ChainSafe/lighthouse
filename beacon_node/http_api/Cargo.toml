@@ -43,6 +43,8 @@ sensitive_url = { workspace = true }
 store = { workspace = true }
 bytes = { workspace = true }
 beacon_processor = { workspace = true }
+superstruct = { workspace = true }
+merkle_proof = { workspace = true }
 
 [dev-dependencies]
 environment = { workspace = true }
