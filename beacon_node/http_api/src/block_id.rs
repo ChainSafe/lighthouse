@@ -1,4 +1,4 @@
-use crate::deep_storage::DeepStorageBlockCapella;
+use crate::deep_storage::DeepStorageBlock;
 use crate::version::inconsistent_fork_rejection;
 use crate::{state_id::checkpoint_slot_and_execution_optimistic, ExecutionOptimistic};
 use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, WhenSlotSkipped};
@@ -9,12 +9,10 @@ use merkle_proof::MerkleTree;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
-use types::ExecPayload;
-use crate::deep_storage::DeepStorageBlock;
 use types::light_client_update::EXECUTION_PAYLOAD_INDEX;
+use types::ExecPayload;
 use types::{BeaconBlockBody, ForkName};
 use types::{BlobSidecarList, EthSpec, Hash256, SignedBeaconBlock, SignedBlindedBeaconBlock, Slot};
-
 
 /// Wraps `eth2::types::BlockId` and provides a simple way to obtain a block or root for a given
 /// `BlockId`.
@@ -323,62 +321,31 @@ impl BlockId {
         }
     }
 
-    // pub async fn block_body_merkle_proof<T: BeaconChainTypes>(
-    //     &self,
-    //     chain: &BeaconChain<T>,
-    // ) -> Result<DeepStorageBlock<E>, warp::Rejection> {
-    //     let block_id = self.clone();
-    //     let (block_root, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
+    pub async fn block_body_merkle_proof<T: BeaconChainTypes>(
+        &self,
+        chain: &BeaconChain<T>,
+    ) -> Result<DeepStorageBlock<T::EthSpec>, warp::Rejection> {
+        let block_id = self.clone();
+        let (_, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
 
-    //     let (block, _, _) = block_id.full_block(&chain).await?;
+        let (block, _, _) = block_id.full_block(&chain).await?;
 
-    //     let beacon_block_body = BeaconBlockBody::from(
-    //         block
-    //             .message()
-    //             .body_capella()
-    //             .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))?
-    //             .to_owned(),
-    //     );
+        let fork_name = block
+            .fork_name(&chain.spec)
+            .map_err(inconsistent_fork_rejection)?;
 
-    //     let execution = block
-    //         .message()
-    //         .execution_payload()
-    //         .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))?
-    //         .to_execution_payload_header();
-        
-    //     let execution_branch = beacon_block_body
-    //         .block_body_merkle_proof(EXECUTION_PAYLOAD_INDEX)
-    //         .unwrap();
+        let data = match fork_name {
+            ForkName::Capella => DeepStorageBlock::Capella(
+                crate::deep_storage::DeepStorageBlockCapella::new(&block, block_root_branch)?,
+            ),
+            ForkName::Deneb => DeepStorageBlock::Deneb(
+                crate::deep_storage::DeepStorageBlockDeneb::new(&block, block_root_branch)?,
+            ),
+            _ => todo!(),
+        };
 
-    //     let fork_name = block
-    //         .fork_name(&chain.spec)
-    //         .map_err(inconsistent_fork_rejection)?;
-
-    //     let data = match fork_name {
-    //         // ForkName::Altair | ForkName::Merge => {
-    //         //     let header = LightClientHeaderAltair::from_ssz_bytes(bytes)?;
-    //         //     LightClientHeader::Altair(header)
-    //         // }
-    //         ForkName::Capella => DeepStorageBlock::Capella(DeepStorageBlockCapella {
-    //             block_root_branch,
-    //             execution: *execution.as_capella().unwrap(),
-    //             execution_branch,
-    //             _phantom_data: std::marker::PhantomData,
-    //         }),
-    //         // ForkName::Deneb => {
-    //         //     let header = LightClientHeaderDeneb::from_ssz_bytes(bytes)?;
-    //         //     LightClientHeader::Deneb(header)
-    //         // }
-    //         // ForkName::Base => {
-    //         //     return Err(ssz::DecodeError::BytesInvalid(format!(
-    //         //         "LightClientHeader decoding for {fork_name} not implemented"
-    //         //     )))
-    //         // }
-    //         _ => todo!(),
-    //     };
-
-    //     Ok(data)
-    // }
+        Ok(data)
+    }
 }
 
 impl FromStr for BlockId {

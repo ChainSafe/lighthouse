@@ -4451,55 +4451,33 @@ pub fn serve<T: BeaconChainTypes>(
              task_spawner: TaskSpawner<T::EthSpec>,
              chain: Arc<BeaconChain<T>>| {
                 task_spawner.spawn_async_with_rejection(Priority::P1, async move {
-                    let (block_root, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
+                    let (_, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
 
                     let (block, _, _) = block_id.full_block(&chain).await?;
-
-                    let beacon_block_body = BeaconBlockBody::from(
-                        block
-                            .message()
-                            .body_capella()
-                            .map_err(|e| {
-                                warp_utils::reject::custom_server_error(format!("{:?}", e))
-                            })?
-                            .to_owned(),
-                    );
-
-                    let execution = block
-                        .message()
-                        .execution_payload()
-                        .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))?
-                        .to_execution_payload_header();
-
-                    let execution_branch = beacon_block_body
-                        .block_body_merkle_proof(EXECUTION_PAYLOAD_INDEX)
-                        .unwrap();
 
                     let fork_name = block
                         .fork_name(&chain.spec)
                         .map_err(inconsistent_fork_rejection)?;
 
                     let block = match fork_name {
-                        // ForkName::Altair | ForkName::Merge => {
-                        //     let header = LightClientHeaderAltair::from_ssz_bytes(bytes)?;
-                        //     LightClientHeader::Altair(header)
-                        // }
-                        ForkName::Capella => DeepStorageBlock::Capella(deep_storage::DeepStorageBlockCapella {
-                            block_root,
-                            block_root_branch,
-                            execution: execution.as_capella().unwrap().clone(),
-                            execution_branch,
-                            _phantom_data: std::marker::PhantomData,
-                        }),
-                        // ForkName::Deneb => {
-                        //     let header = LightClientHeaderDeneb::from_ssz_bytes(bytes)?;
-                        //     LightClientHeader::Deneb(header)
-                        // }
-                        // ForkName::Base => {
-                        //     return Err(ssz::DecodeError::BytesInvalid(format!(
-                        //         "LightClientHeader decoding for {fork_name} not implemented"
-                        //     )))
-                        // }
+                        ForkName::Merge => DeepStorageBlock::Merge(
+                            crate::deep_storage::DeepStorageBlockMerge::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
+                        ForkName::Capella => DeepStorageBlock::Capella(
+                            crate::deep_storage::DeepStorageBlockCapella::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
+                        ForkName::Deneb => DeepStorageBlock::Deneb(
+                            crate::deep_storage::DeepStorageBlockDeneb::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
                         _ => todo!(),
                     };
 
