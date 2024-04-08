@@ -13,6 +13,7 @@ mod block_rewards;
 mod build_block_contents;
 mod builder_states;
 mod database;
+mod deep_storage;
 mod metrics;
 mod produce_block;
 mod proposer_duties;
@@ -40,6 +41,7 @@ use beacon_processor::{work_reprocessing_queue::ReprocessQueueMessage, BeaconPro
 pub use block_id::BlockId;
 use builder_states::get_next_withdrawals;
 use bytes::Bytes;
+use deep_storage::{DeepStorageBlock, DeepStorageBlockCapella};
 use directory::DEFAULT_ROOT_DIR;
 use eth2::types::{
     self as api_types, BroadcastValidation, EndpointVersion, ForkChoice, ForkChoiceNode,
@@ -4294,7 +4296,7 @@ pub fn serve<T: BeaconChainTypes>(
         .and(warp::path::end())
         .and(multi_key_query::<api_types::EventQuery>())
         .and(task_spawner_filter.clone())
-        .and(chain_filter)
+        .and(chain_filter.clone())
         .then(
             |topics_res: Result<api_types::EventQuery, warp::Rejection>,
              task_spawner: TaskSpawner<T::EthSpec>,
@@ -4386,7 +4388,7 @@ pub fn serve<T: BeaconChainTypes>(
     let lighthouse_log_events = warp::path("lighthouse")
         .and(warp::path("logs"))
         .and(warp::path::end())
-        .and(task_spawner_filter)
+        .and(task_spawner_filter.clone())
         .and(sse_component_filter)
         .then(
             |task_spawner: TaskSpawner<T::EthSpec>, sse_component: Option<SSELoggingComponents>| {
@@ -4423,6 +4425,65 @@ pub fn serve<T: BeaconChainTypes>(
                             "SSE Logging is not enabled".to_string(),
                         ))
                     }
+                })
+            },
+        );
+
+    use crate::deep_storage::DeepStorageBlock;
+    use crate::version::fork_versioned_response;
+    use std::sync::Arc;
+    use types::light_client_update::EXECUTION_PAYLOAD_INDEX;
+    use types::BeaconBlockBody;
+    use types::ExecPayload;
+
+    // GET beacon/proofs/{block_id}
+    let get_history_proof = any_version
+        .and(warp::path("beacon"))
+        .and(warp::path("proofs"))
+        .and(block_id_or_err)
+        .and(task_spawner_filter.clone())
+        .and(chain_filter.clone())
+        // .and(warp::header::optional::<api_types::Accept>("accept"))
+        .and(warp::path::end())
+        .then(
+            |endpoint_version: EndpointVersion,
+             block_id: BlockId,
+             task_spawner: TaskSpawner<T::EthSpec>,
+             chain: Arc<BeaconChain<T>>| {
+                task_spawner.spawn_async_with_rejection(Priority::P1, async move {
+                    let (_, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
+
+                    let (block, _, _) = block_id.full_block(&chain).await?;
+
+                    let fork_name = block
+                        .fork_name(&chain.spec)
+                        .map_err(inconsistent_fork_rejection)?;
+
+                    let block = match fork_name {
+                        ForkName::Merge => DeepStorageBlock::Merge(
+                            crate::deep_storage::DeepStorageBlockMerge::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
+                        ForkName::Capella => DeepStorageBlock::Capella(
+                            crate::deep_storage::DeepStorageBlockCapella::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
+                        ForkName::Deneb => DeepStorageBlock::Deneb(
+                            crate::deep_storage::DeepStorageBlockDeneb::new(
+                                &block,
+                                block_root_branch,
+                            )?,
+                        ),
+                        _ => todo!(),
+                    };
+
+                    fork_versioned_response(endpoint_version, fork_name, block)
+                        .map(|res| warp::reply::json(&res).into_response())
+                        .map(|resp| add_consensus_version_header(resp, fork_name))
                 })
             },
         );
@@ -4508,6 +4569,7 @@ pub fn serve<T: BeaconChainTypes>(
                 .uor(get_events)
                 .uor(get_expected_withdrawals)
                 .uor(lighthouse_log_events.boxed())
+                .uor(get_history_proof)
                 .recover(warp_utils::reject::handle_rejection),
         )
         .boxed()

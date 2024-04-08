@@ -1,10 +1,17 @@
+use crate::deep_storage::DeepStorageBlock;
+use crate::version::inconsistent_fork_rejection;
 use crate::{state_id::checkpoint_slot_and_execution_optimistic, ExecutionOptimistic};
 use beacon_chain::{BeaconChain, BeaconChainError, BeaconChainTypes, WhenSlotSkipped};
 use eth2::types::BlobIndicesQuery;
 use eth2::types::BlockId as CoreBlockId;
+use lighthouse_network::discv5::enr::k256::elliptic_curve::rand_core::block;
+use merkle_proof::MerkleTree;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
+use types::light_client_update::EXECUTION_PAYLOAD_INDEX;
+use types::ExecPayload;
+use types::{BeaconBlockBody, ForkName};
 use types::{BlobSidecarList, EthSpec, Hash256, SignedBeaconBlock, SignedBlindedBeaconBlock, Slot};
 
 /// Wraps `eth2::types::BlockId` and provides a simple way to obtain a block or root for a given
@@ -281,6 +288,63 @@ impl BlockId {
             None => blob_sidecar_list,
         };
         Ok(blob_sidecar_list_filtered)
+    }
+
+    pub fn merkle_brunch_root<T: BeaconChainTypes>(
+        &self,
+        chain: &BeaconChain<T>,
+    ) -> Result<(Hash256, Vec<Hash256>), warp::Rejection> {
+        match &self.0 {
+            eth2::types::BlockId::Slot(slot) => {
+                let epoch = slot.epoch(T::EthSpec::slots_per_epoch());
+                let index = epoch
+                    .position(*slot, T::EthSpec::slots_per_epoch())
+                    .unwrap();
+
+                let block_roots_iter = chain
+                    .forwards_iter_block_roots_until(
+                        epoch.start_slot(T::EthSpec::slots_per_epoch()),
+                        epoch.end_slot(T::EthSpec::slots_per_epoch()),
+                    )
+                    .unwrap();
+
+                let block_roots = block_roots_iter.map(|e| e.unwrap().0).collect::<Vec<_>>();
+
+                let depth = T::EthSpec::slots_per_epoch().ilog2() as usize;
+                let merkle_tree = MerkleTree::create(&block_roots, depth);
+
+                merkle_tree
+                    .generate_proof(index, depth)
+                    .map_err(|e| warp_utils::reject::custom_server_error(format!("{:?}", e)))
+            }
+            _ => todo!(),
+        }
+    }
+
+    pub async fn block_body_merkle_proof<T: BeaconChainTypes>(
+        &self,
+        chain: &BeaconChain<T>,
+    ) -> Result<DeepStorageBlock<T::EthSpec>, warp::Rejection> {
+        let block_id = self.clone();
+        let (_, block_root_branch) = block_id.merkle_brunch_root(&chain)?;
+
+        let (block, _, _) = block_id.full_block(&chain).await?;
+
+        let fork_name = block
+            .fork_name(&chain.spec)
+            .map_err(inconsistent_fork_rejection)?;
+
+        let data = match fork_name {
+            ForkName::Capella => DeepStorageBlock::Capella(
+                crate::deep_storage::DeepStorageBlockCapella::new(&block, block_root_branch)?,
+            ),
+            ForkName::Deneb => DeepStorageBlock::Deneb(
+                crate::deep_storage::DeepStorageBlockDeneb::new(&block, block_root_branch)?,
+            ),
+            _ => todo!(),
+        };
+
+        Ok(data)
     }
 }
 
